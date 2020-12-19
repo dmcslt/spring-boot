@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.boot.devtools.autoconfigure;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +35,8 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.thymeleaf.ThymeleafAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.ResourceProperties;
+import org.springframework.boot.autoconfigure.web.WebProperties;
+import org.springframework.boot.autoconfigure.web.WebProperties.Resources;
 import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration;
 import org.springframework.boot.devtools.classpath.ClassPathChangedEvent;
 import org.springframework.boot.devtools.classpath.ClassPathFileSystemWatcher;
@@ -114,8 +114,18 @@ class LocalDevToolsAutoConfigurationTests {
 	@Test
 	void resourceCachePeriodIsZero() throws Exception {
 		this.context = getContext(() -> initializeAndRun(WebResourcesConfig.class));
-		ResourceProperties properties = this.context.getBean(ResourceProperties.class);
-		assertThat(properties.getCache().getPeriod()).isEqualTo(Duration.ZERO);
+		Resources properties = this.context.getBean(WebProperties.class).getResources();
+		assertThat(properties.getCache().getPeriod()).isZero();
+	}
+
+	@SuppressWarnings("deprecation")
+	@Test
+	void deprecatedResourceCachePeriodIsZeroWhenDeprecatedResourcePropertiesAreInUse() throws Exception {
+		this.context = getContext(() -> initializeAndRun(WebResourcesConfig.class,
+				Collections.singletonMap("spring.resources.add-mappings", false)));
+		Resources properties = this.context
+				.getBean(org.springframework.boot.autoconfigure.web.ResourceProperties.class);
+		assertThat(properties.getCache().getPeriod()).isZero();
 	}
 
 	@Test
@@ -214,8 +224,8 @@ class LocalDevToolsAutoConfigurationTests {
 		ClassPathFileSystemWatcher classPathWatcher = this.context.getBean(ClassPathFileSystemWatcher.class);
 		Object watcher = ReflectionTestUtils.getField(classPathWatcher, "fileSystemWatcher");
 		@SuppressWarnings("unchecked")
-		Map<File, Object> folders = (Map<File, Object>) ReflectionTestUtils.getField(watcher, "folders");
-		assertThat(folders).hasSize(2).containsKey(new File("src/main/java").getAbsoluteFile())
+		Map<File, Object> directories = (Map<File, Object>) ReflectionTestUtils.getField(watcher, "directories");
+		assertThat(directories).hasSize(2).containsKey(new File("src/main/java").getAbsoluteFile())
 				.containsKey(new File("src/test/java").getAbsoluteFile());
 	}
 
@@ -252,8 +262,7 @@ class LocalDevToolsAutoConfigurationTests {
 		Restarter.initialize(new String[0], false, new MockRestartInitializer(), false);
 		SpringApplication application = new SpringApplication(config);
 		application.setDefaultProperties(getDefaultProperties(properties));
-		ConfigurableApplicationContext context = application.run(args);
-		return context;
+		return application.run(args);
 	}
 
 	private Map<String, Object> getDefaultProperties(Map<String, Object> specifiedProperties) {
@@ -268,34 +277,35 @@ class LocalDevToolsAutoConfigurationTests {
 	@Configuration(proxyBeanMethods = false)
 	@Import({ ServletWebServerFactoryAutoConfiguration.class, LocalDevToolsAutoConfiguration.class,
 			ThymeleafAutoConfiguration.class })
-	public static class Config {
+	static class Config {
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
 	@ImportAutoConfiguration({ ServletWebServerFactoryAutoConfiguration.class, LocalDevToolsAutoConfiguration.class,
 			ThymeleafAutoConfiguration.class })
-	public static class ConfigWithMockLiveReload {
+	static class ConfigWithMockLiveReload {
 
 		@Bean
-		public LiveReloadServer liveReloadServer() {
+		LiveReloadServer liveReloadServer() {
 			return mock(LiveReloadServer.class);
 		}
 
 	}
 
+	@SuppressWarnings("deprecation")
 	@Configuration(proxyBeanMethods = false)
-	@Import({ ServletWebServerFactoryAutoConfiguration.class, LocalDevToolsAutoConfiguration.class,
-			ResourceProperties.class })
-	public static class WebResourcesConfig {
+	@Import({ ServletWebServerFactoryAutoConfiguration.class, LocalDevToolsAutoConfiguration.class, WebProperties.class,
+			org.springframework.boot.autoconfigure.web.ResourceProperties.class })
+	static class WebResourcesConfig {
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class SessionRedisTemplateConfig {
+	static class SessionRedisTemplateConfig {
 
 		@Bean
-		public RedisTemplate<Object, Object> sessionRedisTemplate() {
+		RedisTemplate<Object, Object> sessionRedisTemplate() {
 			RedisTemplate<Object, Object> redisTemplate = new RedisTemplate<>();
 			redisTemplate.setConnectionFactory(mock(RedisConnectionFactory.class));
 			return redisTemplate;

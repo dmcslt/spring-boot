@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,15 +48,14 @@ public class ExampleRepository {
 	}
 
 	public ExampleEntity findById(int id) {
-		return this.jdbcTemplate.queryForObject("select id, name from example where id =?", new Object[] { id },
-				ROW_MAPPER);
+		return this.jdbcTemplate.queryForObject("select id, name from example where id =?", ROW_MAPPER, id);
 	}
 
 	public Collection<ExampleEntity> findAll() {
 		return this.jdbcTemplate.query("select id, name from example", ROW_MAPPER);
 	}
 
-	private static class ExampleEntityRowMapper implements RowMapper<ExampleEntity> {
+	static class ExampleEntityRowMapper implements RowMapper<ExampleEntity> {
 
 		@Override
 		public ExampleEntity mapRow(ResultSet rs, int rowNum) throws SQLException {

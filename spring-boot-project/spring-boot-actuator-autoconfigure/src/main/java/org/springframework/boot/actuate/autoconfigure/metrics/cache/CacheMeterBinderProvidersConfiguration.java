@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,12 +26,14 @@ import org.springframework.boot.actuate.metrics.cache.CaffeineCacheMeterBinderPr
 import org.springframework.boot.actuate.metrics.cache.EhCache2CacheMeterBinderProvider;
 import org.springframework.boot.actuate.metrics.cache.HazelcastCacheMeterBinderProvider;
 import org.springframework.boot.actuate.metrics.cache.JCacheCacheMeterBinderProvider;
+import org.springframework.boot.actuate.metrics.cache.RedisCacheMeterBinderProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.ehcache.EhCacheCache;
 import org.springframework.cache.jcache.JCacheCache;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.cache.RedisCache;
 
 /**
  * Configure {@link CacheMeterBinderProvider} beans.
@@ -47,7 +49,7 @@ class CacheMeterBinderProvidersConfiguration {
 	static class CaffeineCacheMeterBinderProviderConfiguration {
 
 		@Bean
-		public CaffeineCacheMeterBinderProvider caffeineCacheMeterBinderProvider() {
+		CaffeineCacheMeterBinderProvider caffeineCacheMeterBinderProvider() {
 			return new CaffeineCacheMeterBinderProvider();
 		}
 
@@ -58,7 +60,7 @@ class CacheMeterBinderProvidersConfiguration {
 	static class EhCache2CacheMeterBinderProviderConfiguration {
 
 		@Bean
-		public EhCache2CacheMeterBinderProvider ehCache2CacheMeterBinderProvider() {
+		EhCache2CacheMeterBinderProvider ehCache2CacheMeterBinderProvider() {
 			return new EhCache2CacheMeterBinderProvider();
 		}
 
@@ -69,7 +71,7 @@ class CacheMeterBinderProvidersConfiguration {
 	static class HazelcastCacheMeterBinderProviderConfiguration {
 
 		@Bean
-		public HazelcastCacheMeterBinderProvider hazelcastCacheMeterBinderProvider() {
+		HazelcastCacheMeterBinderProvider hazelcastCacheMeterBinderProvider() {
 			return new HazelcastCacheMeterBinderProvider();
 		}
 
@@ -80,8 +82,19 @@ class CacheMeterBinderProvidersConfiguration {
 	static class JCacheCacheMeterBinderProviderConfiguration {
 
 		@Bean
-		public JCacheCacheMeterBinderProvider jCacheCacheMeterBinderProvider() {
+		JCacheCacheMeterBinderProvider jCacheCacheMeterBinderProvider() {
 			return new JCacheCacheMeterBinderProvider();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(RedisCache.class)
+	static class RedisCacheMeterBinderProviderConfiguration {
+
+		@Bean
+		RedisCacheMeterBinderProvider redisCacheMeterBinderProvider() {
+			return new RedisCacheMeterBinderProvider();
 		}
 
 	}

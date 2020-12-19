@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,15 @@ class ElasticMetricsExportAutoConfigurationTests {
 	}
 
 	@Test
-	void autoConfigurationCanBeDisabled() {
+	void autoConfigurationCanBeDisabledWithDefaultsEnabledProperty() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.defaults.enabled=false")
+				.run((context) -> assertThat(context).doesNotHaveBean(ElasticMeterRegistry.class)
+						.doesNotHaveBean(ElasticConfig.class));
+	}
+
+	@Test
+	void autoConfigurationCanBeDisabledWithSpecificEnabledProperty() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
 				.withPropertyValues("management.metrics.export.elastic.enabled=false")
 				.run((context) -> assertThat(context).doesNotHaveBean(ElasticMeterRegistry.class)
@@ -86,7 +94,7 @@ class ElasticMetricsExportAutoConfigurationTests {
 	static class BaseConfiguration {
 
 		@Bean
-		public Clock clock() {
+		Clock clock() {
 			return Clock.SYSTEM;
 		}
 
@@ -97,7 +105,7 @@ class ElasticMetricsExportAutoConfigurationTests {
 	static class CustomConfigConfiguration {
 
 		@Bean
-		public ElasticConfig customConfig() {
+		ElasticConfig customConfig() {
 			return (key) -> null;
 		}
 
@@ -108,7 +116,7 @@ class ElasticMetricsExportAutoConfigurationTests {
 	static class CustomRegistryConfiguration {
 
 		@Bean
-		public ElasticMeterRegistry customRegistry(ElasticConfig config, Clock clock) {
+		ElasticMeterRegistry customRegistry(ElasticConfig config, Clock clock) {
 			return new ElasticMeterRegistry(config, clock);
 		}
 

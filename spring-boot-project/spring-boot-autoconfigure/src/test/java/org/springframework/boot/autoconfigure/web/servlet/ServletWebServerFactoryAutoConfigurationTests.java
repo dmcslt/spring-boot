@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import io.undertow.Undertow.Builder;
+import io.undertow.servlet.api.DeploymentInfo;
 import org.apache.catalina.Context;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.startup.Tomcat;
@@ -77,7 +79,7 @@ import static org.mockito.Mockito.verify;
  */
 class ServletWebServerFactoryAutoConfigurationTests {
 
-	private WebApplicationContextRunner contextRunner = new WebApplicationContextRunner(
+	private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner(
 			AnnotationConfigServletWebServerApplicationContext::new)
 					.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class,
 							DispatcherServletAutoConfiguration.class))
@@ -155,10 +157,27 @@ class ServletWebServerFactoryAutoConfigurationTests {
 				AnnotationConfigServletWebServerApplicationContext::new)
 						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class))
 						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
-						.withUserConfiguration(JettyServerCustomizerConfiguration.class);
+						.withUserConfiguration(JettyServerCustomizerConfiguration.class)
+						.withPropertyValues("server.port:0");
 		runner.run((context) -> {
 			JettyServletWebServerFactory factory = context.getBean(JettyServletWebServerFactory.class);
 			assertThat(factory.getServerCustomizers()).hasSize(1);
+		});
+	}
+
+	@Test
+	void jettyServerCustomizerRegisteredAsBeanAndViaFactoryIsOnlyCalledOnce() {
+		WebApplicationContextRunner runner = new WebApplicationContextRunner(
+				AnnotationConfigServletWebServerApplicationContext::new)
+						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class))
+						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
+						.withUserConfiguration(DoubleRegistrationJettyServerCustomizerConfiguration.class)
+						.withPropertyValues("server.port: 0");
+		runner.run((context) -> {
+			JettyServletWebServerFactory factory = context.getBean(JettyServletWebServerFactory.class);
+			JettyServerCustomizer customizer = context.getBean("serverCustomizer", JettyServerCustomizer.class);
+			assertThat(factory.getServerCustomizers()).contains(customizer);
+			verify(customizer, times(1)).customize(any(Server.class));
 		});
 	}
 
@@ -168,10 +187,45 @@ class ServletWebServerFactoryAutoConfigurationTests {
 				AnnotationConfigServletWebServerApplicationContext::new)
 						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class, Server.class))
 						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
-						.withUserConfiguration(UndertowDeploymentInfoCustomizerConfiguration.class);
+						.withUserConfiguration(UndertowDeploymentInfoCustomizerConfiguration.class)
+						.withPropertyValues("server.port:0");
 		runner.run((context) -> {
 			UndertowServletWebServerFactory factory = context.getBean(UndertowServletWebServerFactory.class);
 			assertThat(factory.getDeploymentInfoCustomizers()).hasSize(1);
+		});
+	}
+
+	@Test
+	void undertowDeploymentInfoCustomizerRegisteredAsBeanAndViaFactoryIsOnlyCalledOnce() {
+		WebApplicationContextRunner runner = new WebApplicationContextRunner(
+				AnnotationConfigServletWebServerApplicationContext::new)
+						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class, Server.class))
+						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
+						.withUserConfiguration(DoubleRegistrationUndertowDeploymentInfoCustomizerConfiguration.class)
+						.withPropertyValues("server.port: 0");
+		runner.run((context) -> {
+			UndertowServletWebServerFactory factory = context.getBean(UndertowServletWebServerFactory.class);
+			UndertowDeploymentInfoCustomizer customizer = context.getBean("deploymentInfoCustomizer",
+					UndertowDeploymentInfoCustomizer.class);
+			assertThat(factory.getDeploymentInfoCustomizers()).contains(customizer);
+			verify(customizer, times(1)).customize(any(DeploymentInfo.class));
+		});
+	}
+
+	@Test
+	void undertowBuilderCustomizerRegisteredAsBeanAndViaFactoryIsOnlyCalledOnce() {
+		WebApplicationContextRunner runner = new WebApplicationContextRunner(
+				AnnotationConfigServletWebServerApplicationContext::new)
+						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class, Server.class))
+						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
+						.withUserConfiguration(DoubleRegistrationUndertowBuilderCustomizerConfiguration.class)
+						.withPropertyValues("server.port: 0");
+		runner.run((context) -> {
+			UndertowServletWebServerFactory factory = context.getBean(UndertowServletWebServerFactory.class);
+			UndertowBuilderCustomizer customizer = context.getBean("builderCustomizer",
+					UndertowBuilderCustomizer.class);
+			assertThat(factory.getBuilderCustomizers()).contains(customizer);
+			verify(customizer, times(1)).customize(any(Builder.class));
 		});
 	}
 
@@ -181,11 +235,23 @@ class ServletWebServerFactoryAutoConfigurationTests {
 				AnnotationConfigServletWebServerApplicationContext::new)
 						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class, Server.class))
 						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
-						.withUserConfiguration(UndertowBuilderCustomizerConfiguration.class);
+						.withUserConfiguration(UndertowBuilderCustomizerConfiguration.class)
+						.withPropertyValues("server.port:0");
 		runner.run((context) -> {
 			UndertowServletWebServerFactory factory = context.getBean(UndertowServletWebServerFactory.class);
 			assertThat(factory.getBuilderCustomizers()).hasSize(1);
 		});
+	}
+
+	@Test
+	void undertowServletWebServerFactoryCustomizerIsAutoConfigured() {
+		WebApplicationContextRunner runner = new WebApplicationContextRunner(
+				AnnotationConfigServletWebServerApplicationContext::new)
+						.withClassLoader(new FilteredClassLoader(Tomcat.class, HttpServer.class, Server.class))
+						.withConfiguration(AutoConfigurations.of(ServletWebServerFactoryAutoConfiguration.class))
+						.withUserConfiguration(UndertowBuilderCustomizerConfiguration.class)
+						.withPropertyValues("server.port:0");
+		runner.run((context) -> assertThat(context).hasSingleBean(UndertowServletWebServerFactoryCustomizer.class));
 	}
 
 	@Test
@@ -317,40 +383,40 @@ class ServletWebServerFactoryAutoConfigurationTests {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnExpression("true")
-	public static class WebServerConfiguration {
+	static class WebServerConfiguration {
 
 		@Bean
-		public ServletWebServerFactory webServerFactory() {
+		ServletWebServerFactory webServerFactory() {
 			return new MockServletWebServerFactory();
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class DispatcherServletConfiguration {
+	static class DispatcherServletConfiguration {
 
 		@Bean
-		public DispatcherServlet dispatcherServlet() {
+		DispatcherServlet dispatcherServlet() {
 			return new DispatcherServlet();
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class SpringServletConfiguration {
+	static class SpringServletConfiguration {
 
 		@Bean
-		public DispatcherServlet springServlet() {
+		DispatcherServlet springServlet() {
 			return new DispatcherServlet();
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class NonSpringServletConfiguration {
+	static class NonSpringServletConfiguration {
 
 		@Bean
-		public FrameworkServlet dispatcherServlet() {
+		FrameworkServlet dispatcherServlet() {
 			return new FrameworkServlet() {
 				@Override
 				protected void doService(HttpServletRequest request, HttpServletResponse response) {
@@ -361,32 +427,32 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class NonServletConfiguration {
+	static class NonServletConfiguration {
 
 		@Bean
-		public String dispatcherServlet() {
+		String dispatcherServlet() {
 			return "foo";
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class DispatcherServletWithRegistrationConfiguration {
+	static class DispatcherServletWithRegistrationConfiguration {
 
 		@Bean(name = DispatcherServletAutoConfiguration.DEFAULT_DISPATCHER_SERVLET_BEAN_NAME)
-		public DispatcherServlet dispatcherServlet() {
+		DispatcherServlet dispatcherServlet() {
 			return new DispatcherServlet();
 		}
 
 		@Bean(name = DispatcherServletAutoConfiguration.DEFAULT_DISPATCHER_SERVLET_REGISTRATION_BEAN_NAME)
-		public ServletRegistrationBean<DispatcherServlet> dispatcherRegistration(DispatcherServlet dispatcherServlet) {
+		ServletRegistrationBean<DispatcherServlet> dispatcherRegistration(DispatcherServlet dispatcherServlet) {
 			return new ServletRegistrationBean<>(dispatcherServlet, "/app/*");
 		}
 
 	}
 
 	@Component
-	public static class EnsureWebServerHasNoServletContext implements BeanPostProcessor {
+	static class EnsureWebServerHasNoServletContext implements BeanPostProcessor {
 
 		@Override
 		public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
@@ -405,7 +471,7 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	}
 
 	@Component
-	public static class CallbackEmbeddedServerFactoryCustomizer
+	static class CallbackEmbeddedServerFactoryCustomizer
 			implements WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> {
 
 		@Override
@@ -419,7 +485,7 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class TomcatConnectorCustomizerConfiguration {
 
 		@Bean
-		public TomcatConnectorCustomizer connectorCustomizer() {
+		TomcatConnectorCustomizer connectorCustomizer() {
 			return mock(TomcatConnectorCustomizer.class);
 		}
 
@@ -431,12 +497,12 @@ class ServletWebServerFactoryAutoConfigurationTests {
 		private final TomcatConnectorCustomizer customizer = mock(TomcatConnectorCustomizer.class);
 
 		@Bean
-		public TomcatConnectorCustomizer connectorCustomizer() {
+		TomcatConnectorCustomizer connectorCustomizer() {
 			return this.customizer;
 		}
 
 		@Bean
-		public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
+		WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
 			return (tomcat) -> tomcat.addConnectorCustomizers(this.customizer);
 		}
 
@@ -446,7 +512,7 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class TomcatContextCustomizerConfiguration {
 
 		@Bean
-		public TomcatContextCustomizer contextCustomizer() {
+		TomcatContextCustomizer contextCustomizer() {
 			return mock(TomcatContextCustomizer.class);
 		}
 
@@ -458,12 +524,12 @@ class ServletWebServerFactoryAutoConfigurationTests {
 		private final TomcatContextCustomizer customizer = mock(TomcatContextCustomizer.class);
 
 		@Bean
-		public TomcatContextCustomizer contextCustomizer() {
+		TomcatContextCustomizer contextCustomizer() {
 			return this.customizer;
 		}
 
 		@Bean
-		public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
+		WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
 			return (tomcat) -> tomcat.addContextCustomizers(this.customizer);
 		}
 
@@ -473,7 +539,7 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class TomcatProtocolHandlerCustomizerConfiguration {
 
 		@Bean
-		public TomcatProtocolHandlerCustomizer<?> protocolHandlerCustomizer() {
+		TomcatProtocolHandlerCustomizer<?> protocolHandlerCustomizer() {
 			return mock(TomcatProtocolHandlerCustomizer.class);
 		}
 
@@ -485,12 +551,12 @@ class ServletWebServerFactoryAutoConfigurationTests {
 		private final TomcatProtocolHandlerCustomizer<?> customizer = mock(TomcatProtocolHandlerCustomizer.class);
 
 		@Bean
-		public TomcatProtocolHandlerCustomizer<?> protocolHandlerCustomizer() {
+		TomcatProtocolHandlerCustomizer<?> protocolHandlerCustomizer() {
 			return this.customizer;
 		}
 
 		@Bean
-		public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
+		WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
 			return (tomcat) -> tomcat.addProtocolHandlerCustomizers(this.customizer);
 		}
 
@@ -500,10 +566,26 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class JettyServerCustomizerConfiguration {
 
 		@Bean
-		public JettyServerCustomizer serverCustomizer() {
+		JettyServerCustomizer serverCustomizer() {
 			return (server) -> {
-
 			};
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class DoubleRegistrationJettyServerCustomizerConfiguration {
+
+		private final JettyServerCustomizer customizer = mock(JettyServerCustomizer.class);
+
+		@Bean
+		JettyServerCustomizer serverCustomizer() {
+			return this.customizer;
+		}
+
+		@Bean
+		WebServerFactoryCustomizer<JettyServletWebServerFactory> jettyCustomizer() {
+			return (jetty) -> jetty.addServerCustomizers(this.customizer);
 		}
 
 	}
@@ -512,10 +594,26 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class UndertowBuilderCustomizerConfiguration {
 
 		@Bean
-		public UndertowBuilderCustomizer builderCustomizer() {
+		UndertowBuilderCustomizer builderCustomizer() {
 			return (builder) -> {
-
 			};
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class DoubleRegistrationUndertowBuilderCustomizerConfiguration {
+
+		private final UndertowBuilderCustomizer customizer = mock(UndertowBuilderCustomizer.class);
+
+		@Bean
+		UndertowBuilderCustomizer builderCustomizer() {
+			return this.customizer;
+		}
+
+		@Bean
+		WebServerFactoryCustomizer<UndertowServletWebServerFactory> undertowCustomizer() {
+			return (undertow) -> undertow.addBuilderCustomizers(this.customizer);
 		}
 
 	}
@@ -524,10 +622,26 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class UndertowDeploymentInfoCustomizerConfiguration {
 
 		@Bean
-		public UndertowDeploymentInfoCustomizer deploymentInfoCustomizer() {
+		UndertowDeploymentInfoCustomizer deploymentInfoCustomizer() {
 			return (deploymentInfo) -> {
-
 			};
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class DoubleRegistrationUndertowDeploymentInfoCustomizerConfiguration {
+
+		private final UndertowDeploymentInfoCustomizer customizer = mock(UndertowDeploymentInfoCustomizer.class);
+
+		@Bean
+		UndertowDeploymentInfoCustomizer deploymentInfoCustomizer() {
+			return this.customizer;
+		}
+
+		@Bean
+		WebServerFactoryCustomizer<UndertowServletWebServerFactory> undertowCustomizer() {
+			return (undertow) -> undertow.addDeploymentInfoCustomizers(this.customizer);
 		}
 
 	}
@@ -536,7 +650,7 @@ class ServletWebServerFactoryAutoConfigurationTests {
 	static class ForwardedHeaderFilterConfiguration {
 
 		@Bean
-		public FilterRegistrationBean<ForwardedHeaderFilter> testForwardedHeaderFilter() {
+		FilterRegistrationBean<ForwardedHeaderFilter> testForwardedHeaderFilter() {
 			ForwardedHeaderFilter filter = new ForwardedHeaderFilter();
 			return new FilterRegistrationBean<>(filter);
 		}

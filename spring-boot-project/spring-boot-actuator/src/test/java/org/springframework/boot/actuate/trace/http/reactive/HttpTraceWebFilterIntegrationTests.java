@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
  */
 class HttpTraceWebFilterIntegrationTests {
 
-	private ReactiveWebApplicationContextRunner contextRunner = new ReactiveWebApplicationContextRunner()
+	private final ReactiveWebApplicationContextRunner contextRunner = new ReactiveWebApplicationContextRunner()
 			.withUserConfiguration(Config.class);
 
 	@Test
@@ -92,23 +92,23 @@ class HttpTraceWebFilterIntegrationTests {
 	static class Config {
 
 		@Bean
-		public HttpTraceWebFilter httpTraceWebFilter(HttpTraceRepository repository) {
+		HttpTraceWebFilter httpTraceWebFilter(HttpTraceRepository repository) {
 			Set<Include> includes = EnumSet.allOf(Include.class);
 			return new HttpTraceWebFilter(repository, new HttpExchangeTracer(includes), includes);
 		}
 
 		@Bean
-		public HttpTraceRepository httpTraceRepository() {
+		HttpTraceRepository httpTraceRepository() {
 			return new InMemoryHttpTraceRepository();
 		}
 
 		@Bean
-		public HttpHandler httpHandler(ApplicationContext applicationContext) {
+		HttpHandler httpHandler(ApplicationContext applicationContext) {
 			return WebHttpHandlerBuilder.applicationContext(applicationContext).build();
 		}
 
 		@Bean
-		public RouterFunction<ServerResponse> router() {
+		RouterFunction<ServerResponse> router() {
 			return route(GET("/mono-error"), (request) -> Mono.error(new RuntimeException())).andRoute(GET("/thrown"),
 					(HandlerFunction<ServerResponse>) (request) -> {
 						throw new RuntimeException();

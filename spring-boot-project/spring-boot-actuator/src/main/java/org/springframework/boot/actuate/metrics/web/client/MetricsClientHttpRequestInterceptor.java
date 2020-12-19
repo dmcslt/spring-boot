@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package org.springframework.boot.actuate.metrics.web.client;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -38,11 +40,10 @@ import org.springframework.web.util.UriTemplateHandler;
  *
  * @author Jon Schneider
  * @author Phillip Webb
- * @since 2.0.0
  */
 class MetricsClientHttpRequestInterceptor implements ClientHttpRequestInterceptor {
 
-	private static final ThreadLocal<String> urlTemplate = new NamedThreadLocal<>("Rest Template URL Template");
+	private static final ThreadLocal<Deque<String>> urlTemplate = new UrlTemplateThreadLocal();
 
 	private final MeterRegistry meterRegistry;
 
@@ -51,20 +52,6 @@ class MetricsClientHttpRequestInterceptor implements ClientHttpRequestIntercepto
 	private final String metricName;
 
 	private final AutoTimer autoTimer;
-
-	/**
-	 * Create a new {@code MetricsClientHttpRequestInterceptor}.
-	 * @param meterRegistry the registry to which metrics are recorded
-	 * @param tagProvider provider for metrics tags
-	 * @param metricName name of the metric to record
-	 * @deprecated since 2.2.0 in favor of
-	 * {@link #MetricsClientHttpRequestInterceptor(MeterRegistry, RestTemplateExchangeTagsProvider, String, AutoTimer)}
-	 */
-	@Deprecated
-	MetricsClientHttpRequestInterceptor(MeterRegistry meterRegistry, RestTemplateExchangeTagsProvider tagProvider,
-			String metricName) {
-		this(meterRegistry, tagProvider, metricName, AutoTimer.ENABLED);
-	}
 
 	/**
 	 * Create a new {@code MetricsClientHttpRequestInterceptor}.
@@ -97,7 +84,9 @@ class MetricsClientHttpRequestInterceptor implements ClientHttpRequestIntercepto
 		finally {
 			getTimeBuilder(request, response).register(this.meterRegistry).record(System.nanoTime() - startTime,
 					TimeUnit.NANOSECONDS);
-			urlTemplate.remove();
+			if (urlTemplate.get().isEmpty()) {
+				urlTemplate.remove();
+			}
 		}
 	}
 
@@ -106,13 +95,13 @@ class MetricsClientHttpRequestInterceptor implements ClientHttpRequestIntercepto
 
 			@Override
 			public URI expand(String url, Map<String, ?> arguments) {
-				urlTemplate.set(url);
+				urlTemplate.get().push(url);
 				return delegate.expand(url, arguments);
 			}
 
 			@Override
 			public URI expand(String url, Object... arguments) {
-				urlTemplate.set(url);
+				urlTemplate.get().push(url);
 				return delegate.expand(url, arguments);
 			}
 
@@ -121,8 +110,21 @@ class MetricsClientHttpRequestInterceptor implements ClientHttpRequestIntercepto
 
 	private Timer.Builder getTimeBuilder(HttpRequest request, ClientHttpResponse response) {
 		return this.autoTimer.builder(this.metricName)
-				.tags(this.tagProvider.getTags(urlTemplate.get(), request, response))
+				.tags(this.tagProvider.getTags(urlTemplate.get().poll(), request, response))
 				.description("Timer of RestTemplate operation");
+	}
+
+	private static final class UrlTemplateThreadLocal extends NamedThreadLocal<Deque<String>> {
+
+		private UrlTemplateThreadLocal() {
+			super("Rest Template URL Template");
+		}
+
+		@Override
+		protected Deque<String> initialValue() {
+			return new LinkedList<>();
+		}
+
 	}
 
 }

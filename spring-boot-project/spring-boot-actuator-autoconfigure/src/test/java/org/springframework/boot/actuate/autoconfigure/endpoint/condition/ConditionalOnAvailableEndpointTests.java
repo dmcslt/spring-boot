@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -182,6 +182,20 @@ class ConditionalOnAvailableEndpointTests {
 				(context) -> assertThat(context).hasBean("info").hasBean("health").hasBean("spring").hasBean("test"));
 	}
 
+	@Test // gh-21044
+	void outcomeWhenIncludeAllShouldMatchDashedEndpoint() throws Exception {
+		this.contextRunner.withUserConfiguration(DashedEndpointConfiguration.class)
+				.withPropertyValues("management.endpoints.web.exposure.include=*")
+				.run((context) -> assertThat(context).hasSingleBean(DashedEndpoint.class));
+	}
+
+	@Test // gh-21044
+	void outcomeWhenIncludeDashedShouldMatchDashedEndpoint() throws Exception {
+		this.contextRunner.withUserConfiguration(DashedEndpointConfiguration.class)
+				.withPropertyValues("management.endpoints.web.exposure.include=test-dashed")
+				.run((context) -> assertThat(context).hasSingleBean(DashedEndpoint.class));
+	}
+
 	@Endpoint(id = "health")
 	static class HealthEndpoint {
 
@@ -207,6 +221,11 @@ class ConditionalOnAvailableEndpointTests {
 
 	}
 
+	@Endpoint(id = "test-dashed")
+	static class DashedEndpoint {
+
+	}
+
 	@EndpointExtension(endpoint = SpringEndpoint.class, filter = TestFilter.class)
 	static class SpringEndpointExtension {
 
@@ -226,31 +245,31 @@ class ConditionalOnAvailableEndpointTests {
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public HealthEndpoint health() {
+		HealthEndpoint health() {
 			return new HealthEndpoint();
 		}
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public InfoEndpoint info() {
+		InfoEndpoint info() {
 			return new InfoEndpoint();
 		}
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public SpringEndpoint spring() {
+		SpringEndpoint spring() {
 			return new SpringEndpoint();
 		}
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public TestEndpoint test() {
+		TestEndpoint test() {
 			return new TestEndpoint();
 		}
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public ShutdownEndpoint shutdown() {
+		ShutdownEndpoint shutdown() {
 			return new ShutdownEndpoint();
 		}
 
@@ -261,13 +280,13 @@ class ConditionalOnAvailableEndpointTests {
 
 		@Bean
 		@ConditionalOnAvailableEndpoint(endpoint = SpringEndpoint.class)
-		public String springComponent() {
+		String springComponent() {
 			return "springComponent";
 		}
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public SpringEndpointExtension springExtension() {
+		SpringEndpointExtension springExtension() {
 			return new SpringEndpointExtension();
 		}
 
@@ -278,8 +297,19 @@ class ConditionalOnAvailableEndpointTests {
 
 		@Bean
 		@ConditionalOnAvailableEndpoint
-		public String springcomp() {
+		String springcomp() {
 			return "springcomp";
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class DashedEndpointConfiguration {
+
+		@Bean
+		@ConditionalOnAvailableEndpoint
+		DashedEndpoint dashedEndpoint() {
+			return new DashedEndpoint();
 		}
 
 	}

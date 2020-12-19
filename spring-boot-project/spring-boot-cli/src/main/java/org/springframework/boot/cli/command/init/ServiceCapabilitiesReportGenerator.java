@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import java.util.TreeSet;
  *
  * @author Stephane Nicoll
  * @author Andy Wilkinson
- * @since 1.2.0
  */
 class ServiceCapabilitiesReportGenerator {
 
@@ -55,7 +54,7 @@ class ServiceCapabilitiesReportGenerator {
 	 * @return the report that describes the service
 	 * @throws IOException if the report cannot be generated
 	 */
-	public String generate(String url) throws IOException {
+	String generate(String url) throws IOException {
 		Object content = this.initializrService.loadServiceCapabilities(url);
 		if (content instanceof InitializrServiceMetadata) {
 			return generateHelp(url, (InitializrServiceMetadata) content);
@@ -100,7 +99,7 @@ class ServiceCapabilitiesReportGenerator {
 	private void reportAvailableProjectTypes(InitializrServiceMetadata metadata, StringBuilder report) {
 		report.append("Available project types:").append(NEW_LINE);
 		report.append("------------------------").append(NEW_LINE);
-		SortedSet<Entry<String, ProjectType>> entries = new TreeSet<>(Comparator.comparing(Entry::getKey));
+		SortedSet<Entry<String, ProjectType>> entries = new TreeSet<>(Entry.comparingByKey());
 		entries.addAll(metadata.getProjectTypes().entrySet());
 		for (Entry<String, ProjectType> entry : entries) {
 			ProjectType type = entry.getValue();

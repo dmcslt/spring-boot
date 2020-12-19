@@ -33,6 +33,7 @@ import org.springframework.util.Assert;
  * A collection of {@link PathMappedEndpoint path mapped endpoints}.
  *
  * @author Phillip Webb
+ * @since 2.0.0
  */
 public class PathMappedEndpoints implements Iterable<PathMappedEndpoint> {
 
@@ -64,13 +65,11 @@ public class PathMappedEndpoints implements Iterable<PathMappedEndpoint> {
 
 	private Map<EndpointId, PathMappedEndpoint> getEndpoints(Collection<EndpointsSupplier<?>> suppliers) {
 		Map<EndpointId, PathMappedEndpoint> endpoints = new LinkedHashMap<>();
-		suppliers.forEach((supplier) -> {
-			supplier.getEndpoints().forEach((endpoint) -> {
-				if (endpoint instanceof PathMappedEndpoint) {
-					endpoints.put(endpoint.getEndpointId(), (PathMappedEndpoint) endpoint);
-				}
-			});
-		});
+		suppliers.forEach((supplier) -> supplier.getEndpoints().forEach((endpoint) -> {
+			if (endpoint instanceof PathMappedEndpoint) {
+				endpoints.put(endpoint.getEndpointId(), (PathMappedEndpoint) endpoint);
+			}
+		}));
 		return Collections.unmodifiableMap(endpoints);
 	}
 

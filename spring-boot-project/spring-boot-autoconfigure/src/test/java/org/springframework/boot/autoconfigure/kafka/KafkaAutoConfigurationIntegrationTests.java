@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,15 @@ package org.springframework.boot.autoconfigure.kafka;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.Producer;
-import org.junit.jupiter.api.AfterAll;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.boot.test.util.TestPropertyValues;
@@ -33,10 +36,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafkaStreams;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.StreamsBuilderFactoryBean;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.kafka.test.EmbeddedKafkaBroker;
+import org.springframework.kafka.test.condition.EmbeddedKafkaCondition;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.messaging.handler.annotation.Header;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,31 +52,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Gary Russell
  * @author Stephane Nicoll
  */
+@EmbeddedKafka(topics = KafkaAutoConfigurationIntegrationTests.TEST_TOPIC)
 class KafkaAutoConfigurationIntegrationTests {
 
-	private static final String TEST_TOPIC = "testTopic";
+	static final String TEST_TOPIC = "testTopic";
 
 	private static final String ADMIN_CREATED_TOPIC = "adminCreatedTopic";
 
-	public static final EmbeddedKafkaBroker embeddedKafka = new EmbeddedKafkaBroker(1, true, TEST_TOPIC);
-
 	private AnnotationConfigApplicationContext context;
-
-	@BeforeAll
-	public static void setUp() {
-		embeddedKafka.afterPropertiesSet();
-	}
 
 	@AfterEach
 	void close() {
 		if (this.context != null) {
 			this.context.close();
 		}
-	}
-
-	@AfterAll
-	public static void tearDown() {
-		embeddedKafka.destroy();
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -113,20 +107,20 @@ class KafkaAutoConfigurationIntegrationTests {
 	}
 
 	private String getEmbeddedKafkaBrokersAsString() {
-		return embeddedKafka.getBrokersAsString();
+		return EmbeddedKafkaCondition.getBroker().getBrokersAsString();
 	}
 
 	@Configuration(proxyBeanMethods = false)
 	static class KafkaConfig {
 
 		@Bean
-		public Listener listener() {
+		Listener listener() {
 			return new Listener();
 		}
 
 		@Bean
-		public NewTopic adminCreated() {
-			return new NewTopic(ADMIN_CREATED_TOPIC, 10, (short) 1);
+		NewTopic adminCreated() {
+			return TopicBuilder.name(ADMIN_CREATED_TOPIC).partitions(10).replicas(1).build();
 		}
 
 	}
@@ -135,9 +129,15 @@ class KafkaAutoConfigurationIntegrationTests {
 	@EnableKafkaStreams
 	static class KafkaStreamsConfig {
 
+		@Bean
+		KTable<?, ?> table(StreamsBuilder builder) {
+			KStream<Object, Object> stream = builder.stream(Pattern.compile("test"));
+			return stream.groupByKey().count(Materialized.as("store"));
+		}
+
 	}
 
-	public static class Listener {
+	static class Listener {
 
 		private final CountDownLatch latch = new CountDownLatch(1);
 
@@ -146,7 +146,7 @@ class KafkaAutoConfigurationIntegrationTests {
 		private volatile String key;
 
 		@KafkaListener(topics = TEST_TOPIC)
-		public void listen(String foo, @Header(KafkaHeaders.RECEIVED_MESSAGE_KEY) String key) {
+		void listen(String foo, @Header(KafkaHeaders.RECEIVED_MESSAGE_KEY) String key) {
 			this.received = foo;
 			this.key = key;
 			this.latch.countDown();

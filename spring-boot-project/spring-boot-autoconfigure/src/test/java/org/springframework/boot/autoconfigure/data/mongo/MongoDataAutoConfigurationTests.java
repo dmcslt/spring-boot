@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Set;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import org.junit.jupiter.api.Test;
 
@@ -40,10 +40,9 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.mapping.model.CamelCaseAbbreviatingFieldNamingStrategy;
 import org.springframework.data.mapping.model.FieldNamingStrategy;
 import org.springframework.data.mapping.model.PropertyNameFieldNamingStrategy;
-import org.springframework.data.mongodb.MongoDbFactory;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.SimpleMongoClientDbFactory;
-import org.springframework.data.mongodb.core.SimpleMongoDbFactory;
+import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 import org.springframework.data.mongodb.core.mapping.BasicMongoPersistentEntity;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
@@ -71,9 +70,33 @@ class MongoDataAutoConfigurationTests {
 	}
 
 	@Test
-	void gridFsTemplateExists() {
-		this.contextRunner.withPropertyValues("spring.data.mongodb.gridFsDatabase:grid")
-				.run((context) -> assertThat(context).hasSingleBean(GridFsTemplate.class));
+	void whenGridFsDatabaseIsConfiguredThenGridFsTemplateIsAutoConfiguredAndUsesIt() {
+		this.contextRunner.withPropertyValues("spring.data.mongodb.gridfs.database:grid").run((context) -> {
+			assertThat(context).hasSingleBean(GridFsTemplate.class);
+			GridFsTemplate template = context.getBean(GridFsTemplate.class);
+			MongoDatabaseFactory factory = (MongoDatabaseFactory) ReflectionTestUtils.getField(template, "dbFactory");
+			assertThat(factory.getMongoDatabase().getName()).isEqualTo("grid");
+		});
+	}
+
+	@Test
+	@Deprecated
+	void whenGridFsDatabaseIsConfiguredWithDeprecatedPropertyThenGridFsTemplateIsAutoConfiguredAndUsesIt() {
+		this.contextRunner.withPropertyValues("spring.data.mongodb.gridFsDatabase:grid").run((context) -> {
+			assertThat(context).hasSingleBean(GridFsTemplate.class);
+			GridFsTemplate template = context.getBean(GridFsTemplate.class);
+			MongoDatabaseFactory factory = (MongoDatabaseFactory) ReflectionTestUtils.getField(template, "dbFactory");
+			assertThat(factory.getMongoDatabase().getName()).isEqualTo("grid");
+		});
+	}
+
+	@Test
+	void whenGridFsBucketIsConfiguredThenGridFsTemplateIsAutoConfiguredAndUsesIt() {
+		this.contextRunner.withPropertyValues("spring.data.mongodb.gridfs.bucket:test-bucket").run((context) -> {
+			assertThat(context).hasSingleBean(GridFsTemplate.class);
+			GridFsTemplate template = context.getBean(GridFsTemplate.class);
+			assertThat(template).hasFieldOrPropertyWithValue("bucket", "test-bucket");
+		});
 	}
 
 	@Test
@@ -165,23 +188,29 @@ class MongoDataAutoConfigurationTests {
 	void backsOffIfMongoClientBeanIsNotPresent() {
 		ApplicationContextRunner runner = new ApplicationContextRunner()
 				.withConfiguration(AutoConfigurations.of(MongoDataAutoConfiguration.class));
-		runner.run((context) -> assertThat(context).doesNotHaveBean(MongoDataAutoConfiguration.class));
+		runner.run((context) -> assertThat(context).doesNotHaveBean(MongoTemplate.class));
 	}
 
 	@Test
-	void createsMongoDbFactoryForPreferredMongoClient() {
+	void createsMongoDatabaseFactoryForPreferredMongoClient() {
 		this.contextRunner.run((context) -> {
-			MongoDbFactory dbFactory = context.getBean(MongoDbFactory.class);
-			assertThat(dbFactory).isInstanceOf(SimpleMongoDbFactory.class);
+			MongoDatabaseFactory dbFactory = context.getBean(MongoDatabaseFactory.class);
+			assertThat(dbFactory).isInstanceOf(SimpleMongoClientDatabaseFactory.class);
 		});
 	}
 
 	@Test
-	void createsMongoDbFactoryForFallbackMongoClient() {
+	void createsMongoDatabaseFactoryForFallbackMongoClient() {
 		this.contextRunner.withUserConfiguration(FallbackMongoClientConfiguration.class).run((context) -> {
-			MongoDbFactory dbFactory = context.getBean(MongoDbFactory.class);
-			assertThat(dbFactory).isInstanceOf(SimpleMongoClientDbFactory.class);
+			MongoDatabaseFactory dbFactory = context.getBean(MongoDatabaseFactory.class);
+			assertThat(dbFactory).isInstanceOf(SimpleMongoClientDatabaseFactory.class);
 		});
+	}
+
+	@Test
+	void autoConfiguresIfUserProvidesMongoDatabaseFactoryButNoClient() {
+		this.contextRunner.withUserConfiguration(MongoDatabaseFactoryConfiguration.class)
+				.run((context) -> assertThat(context).hasSingleBean(MongoTemplate.class));
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -194,7 +223,7 @@ class MongoDataAutoConfigurationTests {
 	static class CustomConversionsConfig {
 
 		@Bean
-		public MongoCustomConversions customConversions() {
+		MongoCustomConversions customConversions() {
 			return new MongoCustomConversions(Arrays.asList(new MyConverter()));
 		}
 
@@ -216,7 +245,17 @@ class MongoDataAutoConfigurationTests {
 
 	}
 
-	private static class MyConverter implements Converter<MongoClient, Boolean> {
+	@Configuration(proxyBeanMethods = false)
+	static class MongoDatabaseFactoryConfiguration {
+
+		@Bean
+		MongoDatabaseFactory mongoDatabaseFactory() {
+			return new SimpleMongoClientDatabaseFactory(MongoClients.create(), "test");
+		}
+
+	}
+
+	static class MyConverter implements Converter<MongoClient, Boolean> {
 
 		@Override
 		public Boolean convert(MongoClient source) {

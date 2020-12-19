@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,22 +20,25 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import org.apache.http.client.config.RequestConfig;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpRequestInitializer;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.client.InterceptingClientHttpRequestFactory;
@@ -59,7 +62,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -73,6 +76,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * @author Kevin Strijbos
  * @author Ilya Lukyanovich
  */
+@ExtendWith(MockitoExtension.class)
 class RestTemplateBuilderTests {
 
 	private RestTemplateBuilder builder = new RestTemplateBuilder();
@@ -82,11 +86,6 @@ class RestTemplateBuilderTests {
 
 	@Mock
 	private ClientHttpRequestInterceptor interceptor;
-
-	@BeforeEach
-	void setup() {
-		MockitoAnnotations.initMocks(this);
-	}
 
 	@Test
 	void createWhenCustomizersAreNullShouldThrowException() {
@@ -307,8 +306,7 @@ class RestTemplateBuilderTests {
 	@Test
 	void basicAuthenticationShouldApply() throws Exception {
 		RestTemplate template = this.builder.basicAuthentication("spring", "boot", StandardCharsets.UTF_8).build();
-		ClientHttpRequestFactory requestFactory = template.getRequestFactory();
-		ClientHttpRequest request = requestFactory.createRequest(URI.create("http://localhost"), HttpMethod.POST);
+		ClientHttpRequest request = createRequest(template);
 		assertThat(request.getHeaders()).containsOnlyKeys(HttpHeaders.AUTHORIZATION);
 		assertThat(request.getHeaders().get(HttpHeaders.AUTHORIZATION)).containsExactly("Basic c3ByaW5nOmJvb3Q=");
 	}
@@ -316,8 +314,24 @@ class RestTemplateBuilderTests {
 	@Test
 	void defaultHeaderAddsHeader() throws IOException {
 		RestTemplate template = this.builder.defaultHeader("spring", "boot").build();
-		ClientHttpRequestFactory requestFactory = template.getRequestFactory();
-		ClientHttpRequest request = requestFactory.createRequest(URI.create("http://localhost"), HttpMethod.GET);
+		ClientHttpRequest request = createRequest(template);
+		assertThat(request.getHeaders()).contains(entry("spring", Collections.singletonList("boot")));
+	}
+
+	@Test
+	void defaultHeaderAddsHeaderValues() throws IOException {
+		String name = HttpHeaders.ACCEPT;
+		String[] values = { MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE };
+		RestTemplate template = this.builder.defaultHeader(name, values).build();
+		ClientHttpRequest request = createRequest(template);
+		assertThat(request.getHeaders()).contains(entry(name, Arrays.asList(values)));
+	}
+
+	@Test // gh-17885
+	void defaultHeaderWhenUsingMockRestServiceServerAddsHeader() throws IOException {
+		RestTemplate template = this.builder.defaultHeader("spring", "boot").build();
+		MockRestServiceServer.bindTo(template).build();
+		ClientHttpRequest request = createRequest(template);
 		assertThat(request.getHeaders()).contains(entry("spring", Collections.singletonList("boot")));
 	}
 
@@ -325,8 +339,7 @@ class RestTemplateBuilderTests {
 	void requestCustomizersAddsCustomizers() throws IOException {
 		RestTemplate template = this.builder
 				.requestCustomizers((request) -> request.getHeaders().add("spring", "framework")).build();
-		ClientHttpRequestFactory requestFactory = template.getRequestFactory();
-		ClientHttpRequest request = requestFactory.createRequest(URI.create("http://localhost"), HttpMethod.GET);
+		ClientHttpRequest request = createRequest(template);
 		assertThat(request.getHeaders()).contains(entry("spring", Collections.singletonList("framework")));
 	}
 
@@ -335,8 +348,7 @@ class RestTemplateBuilderTests {
 		RestTemplate template = this.builder
 				.requestCustomizers((request) -> request.getHeaders().add("spring", "framework"))
 				.additionalRequestCustomizers((request) -> request.getHeaders().add("for", "java")).build();
-		ClientHttpRequestFactory requestFactory = template.getRequestFactory();
-		ClientHttpRequest request = requestFactory.createRequest(URI.create("http://localhost"), HttpMethod.GET);
+		ClientHttpRequest request = createRequest(template);
 		assertThat(request.getHeaders()).contains(entry("spring", Collections.singletonList("framework")))
 				.contains(entry("for", Collections.singletonList("java")));
 	}
@@ -375,7 +387,7 @@ class RestTemplateBuilderTests {
 		RestTemplateCustomizer customizer2 = mock(RestTemplateCustomizer.class);
 		RestTemplate template = this.builder.customizers(customizer1).customizers(Collections.singleton(customizer2))
 				.build();
-		verifyZeroInteractions(customizer1);
+		verifyNoInteractions(customizer1);
 		verify(customizer2).customize(template);
 	}
 
@@ -416,11 +428,8 @@ class RestTemplateBuilderTests {
 					assertThat(restTemplate.getErrorHandler()).isEqualTo(errorHandler);
 					ClientHttpRequestFactory actualRequestFactory = restTemplate.getRequestFactory();
 					assertThat(actualRequestFactory).isInstanceOf(InterceptingClientHttpRequestFactory.class);
-					ClientHttpRequestFactory authRequestFactory = (ClientHttpRequestFactory) ReflectionTestUtils
-							.getField(actualRequestFactory, "requestFactory");
-					assertThat(authRequestFactory)
-							.isInstanceOf(RestTemplateBuilderClientHttpRequestFactoryWrapper.class);
-					assertThat(authRequestFactory).hasFieldOrPropertyWithValue("requestFactory", requestFactory);
+					ClientHttpRequestInitializer initializer = restTemplate.getClientHttpRequestInitializers().get(0);
+					assertThat(initializer).isInstanceOf(RestTemplateBuilderClientHttpRequestInitializer.class);
 				}).build();
 	}
 
@@ -528,8 +537,7 @@ class RestTemplateBuilderTests {
 	void readTimeoutCanBeConfiguredOnOkHttp3RequestFactory() {
 		ClientHttpRequestFactory requestFactory = this.builder.requestFactory(OkHttp3ClientHttpRequestFactory.class)
 				.setReadTimeout(Duration.ofMillis(1234)).build().getRequestFactory();
-		assertThat(ReflectionTestUtils.getField(ReflectionTestUtils.getField(requestFactory, "client"), "readTimeout"))
-				.isEqualTo(1234);
+		assertThat(requestFactory).extracting("client").extracting("readTimeout").isEqualTo(1234);
 	}
 
 	@Test
@@ -577,7 +585,12 @@ class RestTemplateBuilderTests {
 		assertThat(template.getRequestFactory()).isInstanceOf(BufferingClientHttpRequestFactory.class);
 	}
 
-	public static class RestTemplateSubclass extends RestTemplate {
+	private ClientHttpRequest createRequest(RestTemplate template) {
+		return ReflectionTestUtils.invokeMethod(template, "createRequest", URI.create("http://localhost"),
+				HttpMethod.GET);
+	}
+
+	static class RestTemplateSubclass extends RestTemplate {
 
 	}
 

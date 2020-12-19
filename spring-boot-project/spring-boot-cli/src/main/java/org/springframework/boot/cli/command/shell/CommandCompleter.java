@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,12 +33,14 @@ import jline.console.completer.StringsCompleter;
 import org.springframework.boot.cli.command.Command;
 import org.springframework.boot.cli.command.options.OptionHelp;
 import org.springframework.boot.cli.util.Log;
+import org.springframework.util.StringUtils;
 
 /**
  * JLine {@link Completer} for Spring Boot {@link Command}s.
  *
  * @author Jon Brisbin
  * @author Phillip Webb
+ * @since 1.0.0
  */
 public class CommandCompleter extends StringsCompleter {
 
@@ -73,7 +75,7 @@ public class CommandCompleter extends StringsCompleter {
 		int completionIndex = super.complete(buffer, cursor, candidates);
 		int spaceIndex = buffer.indexOf(' ');
 		String commandName = ((spaceIndex != -1) ? buffer.substring(0, spaceIndex) : "");
-		if (!"".equals(commandName.trim())) {
+		if (StringUtils.hasText(commandName)) {
 			for (Command command : this.commands) {
 				if (command.getName().equals(commandName)) {
 					if (cursor == buffer.length() && buffer.endsWith(" ")) {
@@ -129,11 +131,11 @@ public class CommandCompleter extends StringsCompleter {
 			this.usage = optionHelp.getUsageHelp();
 		}
 
-		public String getOptions() {
+		String getOptions() {
 			return this.options;
 		}
 
-		public String getUsage() {
+		String getUsage() {
 			return this.usage;
 		}
 

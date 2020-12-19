@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@
 package org.springframework.boot.loader.jar;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.ValueRange;
 
 import org.springframework.boot.loader.data.RandomAccessData;
 
@@ -27,6 +30,7 @@ import org.springframework.boot.loader.data.RandomAccessData;
  *
  * @author Phillip Webb
  * @author Andy Wilkinson
+ * @author Dmytro Nosan
  * @see <a href="https://en.wikipedia.org/wiki/Zip_%28file_format%29">Zip File Format</a>
  */
 
@@ -93,7 +97,7 @@ final class CentralDirectoryFileHeader implements FileHeader {
 		}
 	}
 
-	public AsciiBytes getName() {
+	AsciiBytes getName() {
 		return this.name;
 	}
 
@@ -102,7 +106,7 @@ final class CentralDirectoryFileHeader implements FileHeader {
 		return this.name.matches(name, suffix);
 	}
 
-	public boolean isDirectory() {
+	boolean isDirectory() {
 		return this.name.endsWith(SLASH);
 	}
 
@@ -111,7 +115,7 @@ final class CentralDirectoryFileHeader implements FileHeader {
 		return (int) Bytes.littleEndianValue(this.header, this.headerOffset + 10, 2);
 	}
 
-	public long getTime() {
+	long getTime() {
 		long datetime = Bytes.littleEndianValue(this.header, this.headerOffset + 12, 4);
 		return decodeMsDosFormatDateTime(datetime);
 	}
@@ -124,13 +128,17 @@ final class CentralDirectoryFileHeader implements FileHeader {
 	 * @return the date and time as milliseconds since the epoch
 	 */
 	private long decodeMsDosFormatDateTime(long datetime) {
-		LocalDateTime localDateTime = LocalDateTime.of((int) (((datetime >> 25) & 0x7f) + 1980),
-				(int) ((datetime >> 21) & 0x0f), (int) ((datetime >> 16) & 0x1f), (int) ((datetime >> 11) & 0x1f),
-				(int) ((datetime >> 5) & 0x3f), (int) ((datetime << 1) & 0x3e));
-		return localDateTime.toEpochSecond(ZoneId.systemDefault().getRules().getOffset(localDateTime)) * 1000;
+		int year = getChronoValue(((datetime >> 25) & 0x7f) + 1980, ChronoField.YEAR);
+		int month = getChronoValue((datetime >> 21) & 0x0f, ChronoField.MONTH_OF_YEAR);
+		int day = getChronoValue((datetime >> 16) & 0x1f, ChronoField.DAY_OF_MONTH);
+		int hour = getChronoValue((datetime >> 11) & 0x1f, ChronoField.HOUR_OF_DAY);
+		int minute = getChronoValue((datetime >> 5) & 0x3f, ChronoField.MINUTE_OF_HOUR);
+		int second = getChronoValue((datetime << 1) & 0x3e, ChronoField.SECOND_OF_MINUTE);
+		return ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneId.systemDefault()).toInstant()
+				.truncatedTo(ChronoUnit.SECONDS).toEpochMilli();
 	}
 
-	public long getCrc() {
+	long getCrc() {
 		return Bytes.littleEndianValue(this.header, this.headerOffset + 16, 4);
 	}
 
@@ -144,15 +152,15 @@ final class CentralDirectoryFileHeader implements FileHeader {
 		return Bytes.littleEndianValue(this.header, this.headerOffset + 24, 4);
 	}
 
-	public byte[] getExtra() {
+	byte[] getExtra() {
 		return this.extra;
 	}
 
-	public boolean hasExtra() {
+	boolean hasExtra() {
 		return this.extra.length > 0;
 	}
 
-	public AsciiBytes getComment() {
+	AsciiBytes getComment() {
 		return this.comment;
 	}
 
@@ -168,12 +176,17 @@ final class CentralDirectoryFileHeader implements FileHeader {
 		return new CentralDirectoryFileHeader(header, 0, this.name, header, this.comment, this.localHeaderOffset);
 	}
 
-	public static CentralDirectoryFileHeader fromRandomAccessData(RandomAccessData data, int offset,
-			JarEntryFilter filter) throws IOException {
+	static CentralDirectoryFileHeader fromRandomAccessData(RandomAccessData data, int offset, JarEntryFilter filter)
+			throws IOException {
 		CentralDirectoryFileHeader fileHeader = new CentralDirectoryFileHeader();
 		byte[] bytes = data.read(offset, 46);
 		fileHeader.load(bytes, 0, data, offset, filter);
 		return fileHeader;
+	}
+
+	private static int getChronoValue(long value, ChronoField field) {
+		ValueRange range = field.range();
+		return Math.toIntExact(Math.min(Math.max(value, range.getMinimum()), range.getMaximum()));
 	}
 
 }

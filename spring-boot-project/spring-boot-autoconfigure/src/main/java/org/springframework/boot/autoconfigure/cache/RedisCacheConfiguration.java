@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import org.springframework.data.redis.serializer.RedisSerializationContext.Seria
  * @author Stephane Nicoll
  * @author Mark Paluch
  * @author Ryon Day
- * @since 1.3.0
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(RedisConnectionFactory.class)
@@ -54,9 +53,9 @@ import org.springframework.data.redis.serializer.RedisSerializationContext.Seria
 class RedisCacheConfiguration {
 
 	@Bean
-	public RedisCacheManager cacheManager(CacheProperties cacheProperties,
-			CacheManagerCustomizers cacheManagerCustomizers,
+	RedisCacheManager cacheManager(CacheProperties cacheProperties, CacheManagerCustomizers cacheManagerCustomizers,
 			ObjectProvider<org.springframework.data.redis.cache.RedisCacheConfiguration> redisCacheConfiguration,
+			ObjectProvider<RedisCacheManagerBuilderCustomizer> redisCacheManagerBuilderCustomizers,
 			RedisConnectionFactory redisConnectionFactory, ResourceLoader resourceLoader) {
 		RedisCacheManagerBuilder builder = RedisCacheManager.builder(redisConnectionFactory).cacheDefaults(
 				determineConfiguration(cacheProperties, redisCacheConfiguration, resourceLoader.getClassLoader()));
@@ -64,6 +63,10 @@ class RedisCacheConfiguration {
 		if (!cacheNames.isEmpty()) {
 			builder.initialCacheNames(new LinkedHashSet<>(cacheNames));
 		}
+		if (cacheProperties.getRedis().isEnableStatistics()) {
+			builder.enableStatistics();
+		}
+		redisCacheManagerBuilderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return cacheManagerCustomizers.customize(builder.build());
 	}
 
@@ -72,7 +75,6 @@ class RedisCacheConfiguration {
 			ObjectProvider<org.springframework.data.redis.cache.RedisCacheConfiguration> redisCacheConfiguration,
 			ClassLoader classLoader) {
 		return redisCacheConfiguration.getIfAvailable(() -> createConfiguration(cacheProperties, classLoader));
-
 	}
 
 	private org.springframework.data.redis.cache.RedisCacheConfiguration createConfiguration(
@@ -86,7 +88,7 @@ class RedisCacheConfiguration {
 			config = config.entryTtl(redisProperties.getTimeToLive());
 		}
 		if (redisProperties.getKeyPrefix() != null) {
-			config = config.prefixKeysWith(redisProperties.getKeyPrefix());
+			config = config.prefixCacheNameWith(redisProperties.getKeyPrefix());
 		}
 		if (!redisProperties.isCacheNullValues()) {
 			config = config.disableCachingNullValues();

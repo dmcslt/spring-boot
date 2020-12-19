@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ import java.util.zip.ZipOutputStream;
 import joptsimple.OptionSet;
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.boot.cli.command.status.ExitStatus;
 
@@ -45,6 +45,7 @@ import static org.mockito.Mockito.verify;
  * @author Stephane Nicoll
  * @author Eddú Meléndez
  */
+@ExtendWith(MockitoExtension.class)
 class InitCommandTests extends AbstractHttpClientMockTests {
 
 	private final TestableInitCommandOptionHandler handler;
@@ -53,11 +54,6 @@ class InitCommandTests extends AbstractHttpClientMockTests {
 
 	@Captor
 	private ArgumentCaptor<HttpUriRequest> requestCaptor;
-
-	@BeforeEach
-	void setupMocks() {
-		MockitoAnnotations.initMocks(this);
-	}
 
 	InitCommandTests() {
 		InitializrService initializrService = new InitializrService(this.http);
@@ -350,16 +346,18 @@ class InitCommandTests extends AbstractHttpClientMockTests {
 	}
 
 	private byte[] createFakeZipArchive(String fileName, String content) throws IOException {
-		try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); ZipOutputStream zos = new ZipOutputStream(bos)) {
-			ZipEntry entry = new ZipEntry(fileName);
-			zos.putNextEntry(entry);
-			zos.write(content.getBytes());
-			zos.closeEntry();
-			return bos.toByteArray();
+		try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+			try (ZipOutputStream zos = new ZipOutputStream(bos)) {
+				ZipEntry entry = new ZipEntry(fileName);
+				zos.putNextEntry(entry);
+				zos.write(content.getBytes());
+				zos.closeEntry();
+				return bos.toByteArray();
+			}
 		}
 	}
 
-	private static class TestableInitCommandOptionHandler extends InitCommand.InitOptionHandler {
+	static class TestableInitCommandOptionHandler extends InitCommand.InitOptionHandler {
 
 		private boolean disableProjectGeneration;
 

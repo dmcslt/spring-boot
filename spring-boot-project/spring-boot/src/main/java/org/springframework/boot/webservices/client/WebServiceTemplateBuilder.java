@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -329,7 +329,7 @@ public class WebServiceTemplateBuilder {
 	 * @param messageFactory the message factory to use for creating messages
 	 * @return a new builder instance.
 	 * @see WebServiceTemplate#setMessageFactory(WebServiceMessageFactory)
-	 **/
+	 */
 	public WebServiceTemplateBuilder setWebServiceMessageFactory(WebServiceMessageFactory messageFactory) {
 		Assert.notNull(messageFactory, "MessageFactory must not be null");
 		return new WebServiceTemplateBuilder(this.detectHttpMessageSender, this.interceptors, this.internalCustomizers,
@@ -342,7 +342,7 @@ public class WebServiceTemplateBuilder {
 	 * @param unmarshaller the message unmarshaller
 	 * @return a new builder instance.
 	 * @see WebServiceTemplate#setUnmarshaller(Unmarshaller)
-	 **/
+	 */
 	public WebServiceTemplateBuilder setUnmarshaller(Unmarshaller unmarshaller) {
 		return new WebServiceTemplateBuilder(this.detectHttpMessageSender, this.interceptors, this.internalCustomizers,
 				this.customizers, this.messageSenders, this.marshaller, unmarshaller, this.destinationProvider,
@@ -354,7 +354,7 @@ public class WebServiceTemplateBuilder {
 	 * @param marshaller the message marshaller
 	 * @return a new builder instance.
 	 * @see WebServiceTemplate#setMarshaller(Marshaller)
-	 **/
+	 */
 	public WebServiceTemplateBuilder setMarshaller(Marshaller marshaller) {
 		return new WebServiceTemplateBuilder(this.detectHttpMessageSender, this.interceptors, this.internalCustomizers,
 				this.customizers, this.messageSenders, marshaller, this.unmarshaller, this.destinationProvider,
@@ -424,7 +424,7 @@ public class WebServiceTemplateBuilder {
 	 * @see #configure(WebServiceTemplate)
 	 */
 	public WebServiceTemplate build() {
-		return build(WebServiceTemplate.class);
+		return configure(new WebServiceTemplate());
 	}
 
 	/**
@@ -473,8 +473,8 @@ public class WebServiceTemplateBuilder {
 	private void applyCustomizers(WebServiceTemplate webServiceTemplate,
 			Set<WebServiceTemplateCustomizer> customizers) {
 		if (!CollectionUtils.isEmpty(customizers)) {
-			for (WebServiceTemplateCustomizer internalCustomizer : customizers) {
-				internalCustomizer.customize(webServiceTemplate);
+			for (WebServiceTemplateCustomizer customizer : customizers) {
+				customizer.customize(webServiceTemplate);
 			}
 		}
 	}
@@ -505,13 +505,13 @@ public class WebServiceTemplateBuilder {
 	 * Collect user-defined {@link WebServiceMessageSender} and whether only additional
 	 * message senders were added or not.
 	 */
-	private static class WebServiceMessageSenders {
+	private static final class WebServiceMessageSenders {
 
 		private final boolean onlyAdditional;
 
 		private Set<WebServiceMessageSender> messageSenders;
 
-		WebServiceMessageSenders() {
+		private WebServiceMessageSenders() {
 			this(true, Collections.emptySet());
 		}
 
@@ -520,19 +520,19 @@ public class WebServiceTemplateBuilder {
 			this.messageSenders = messageSenders;
 		}
 
-		public boolean isOnlyAdditional() {
+		boolean isOnlyAdditional() {
 			return this.onlyAdditional;
 		}
 
-		public Set<WebServiceMessageSender> getMessageSenders() {
+		Set<WebServiceMessageSender> getMessageSenders() {
 			return this.messageSenders;
 		}
 
-		public WebServiceMessageSenders set(Collection<? extends WebServiceMessageSender> messageSenders) {
+		WebServiceMessageSenders set(Collection<? extends WebServiceMessageSender> messageSenders) {
 			return new WebServiceMessageSenders(false, new LinkedHashSet<>(messageSenders));
 		}
 
-		public WebServiceMessageSenders add(Collection<? extends WebServiceMessageSender> messageSenders) {
+		WebServiceMessageSenders add(Collection<? extends WebServiceMessageSender> messageSenders) {
 			return new WebServiceMessageSenders(this.onlyAdditional, append(this.messageSenders, messageSenders));
 		}
 
@@ -540,7 +540,8 @@ public class WebServiceTemplateBuilder {
 
 	/**
 	 * {@link WebServiceTemplateCustomizer} to set
-	 * {@link WebServiceTemplate#checkConnectionForFault checkConnectionForFault }.
+	 * {@link WebServiceTemplate#setCheckConnectionForFault(boolean)
+	 * checkConnectionForFault}.
 	 */
 	private static final class CheckConnectionFaultCustomizer implements WebServiceTemplateCustomizer {
 
@@ -559,7 +560,8 @@ public class WebServiceTemplateBuilder {
 
 	/**
 	 * {@link WebServiceTemplateCustomizer} to set
-	 * {@link WebServiceTemplate#checkConnectionForError checkConnectionForError }.
+	 * {@link WebServiceTemplate#setCheckConnectionForError(boolean)
+	 * checkConnectionForError}.
 	 */
 	private static final class CheckConnectionForErrorCustomizer implements WebServiceTemplateCustomizer {
 
@@ -578,7 +580,8 @@ public class WebServiceTemplateBuilder {
 
 	/**
 	 * {@link WebServiceTemplateCustomizer} to set
-	 * {@link WebServiceTemplate#faultMessageResolver faultMessageResolver }.
+	 * {@link WebServiceTemplate#setFaultMessageResolver(FaultMessageResolver)
+	 * faultMessageResolver}.
 	 */
 	private static final class FaultMessageResolverCustomizer implements WebServiceTemplateCustomizer {
 

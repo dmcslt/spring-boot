@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,15 @@ class DynatraceMetricsExportAutoConfigurationTests {
 	}
 
 	@Test
-	void autoConfigurationCanBeDisabled() {
+	void autoConfigurationCanBeDisabledWithDefaultsEnabledProperty() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.defaults.enabled=false")
+				.run((context) -> assertThat(context).doesNotHaveBean(DynatraceMeterRegistry.class)
+						.doesNotHaveBean(DynatraceConfig.class));
+	}
+
+	@Test
+	void autoConfigurationCanBeDisabledWithSpecificEnabledProperty() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
 				.withPropertyValues("management.metrics.export.dynatrace.enabled=false")
 				.run((context) -> assertThat(context).doesNotHaveBean(DynatraceMeterRegistry.class)
@@ -103,7 +111,7 @@ class DynatraceMetricsExportAutoConfigurationTests {
 	static class BaseConfiguration {
 
 		@Bean
-		public Clock clock() {
+		Clock clock() {
 			return Clock.SYSTEM;
 		}
 
@@ -114,18 +122,18 @@ class DynatraceMetricsExportAutoConfigurationTests {
 	static class CustomConfigConfiguration {
 
 		@Bean
-		public DynatraceConfig customConfig() {
+		DynatraceConfig customConfig() {
 			return (key) -> {
-				if ("dynatrace.uri".equals(key)) {
+				switch (key) {
+				case "dynatrace.uri":
 					return "https://dynatrace.example.com";
-				}
-				if ("dynatrace.apiToken".equals(key)) {
+				case "dynatrace.apiToken":
 					return "abcde";
-				}
-				if ("dynatrace.deviceId".equals(key)) {
+				case "dynatrace.deviceId":
 					return "test";
+				default:
+					return null;
 				}
-				return null;
 			};
 		}
 
@@ -136,7 +144,7 @@ class DynatraceMetricsExportAutoConfigurationTests {
 	static class CustomRegistryConfiguration {
 
 		@Bean
-		public DynatraceMeterRegistry customRegistry(DynatraceConfig config, Clock clock) {
+		DynatraceMeterRegistry customRegistry(DynatraceConfig config, Clock clock) {
 			return new DynatraceMeterRegistry(config, clock);
 		}
 

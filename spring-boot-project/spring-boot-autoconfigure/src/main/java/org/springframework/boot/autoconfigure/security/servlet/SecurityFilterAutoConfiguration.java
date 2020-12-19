@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import org.springframework.security.web.context.AbstractSecurityWebApplicationIn
  * @author Rob Winch
  * @author Phillip Webb
  * @author Andy Wilkinson
- * @since 1.3
+ * @since 1.3.0
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = Type.SERVLET)
@@ -73,7 +73,7 @@ public class SecurityFilterAutoConfiguration {
 		}
 		return securityProperties.getFilter().getDispatcherTypes().stream()
 				.map((type) -> DispatcherType.valueOf(type.name()))
-				.collect(Collectors.collectingAndThen(Collectors.toSet(), EnumSet::copyOf));
+				.collect(Collectors.toCollection(() -> EnumSet.noneOf(DispatcherType.class)));
 	}
 
 }

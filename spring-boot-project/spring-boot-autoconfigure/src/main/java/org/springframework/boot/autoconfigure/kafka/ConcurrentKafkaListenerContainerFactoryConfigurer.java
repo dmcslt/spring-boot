@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import org.springframework.kafka.listener.BatchErrorHandler;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.ErrorHandler;
+import org.springframework.kafka.listener.RecordInterceptor;
+import org.springframework.kafka.listener.adapter.RecordFilterStrategy;
 import org.springframework.kafka.support.converter.MessageConverter;
 import org.springframework.kafka.transaction.KafkaAwareTransactionManager;
 
@@ -44,6 +46,8 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 
 	private MessageConverter messageConverter;
 
+	private RecordFilterStrategy<Object, Object> recordFilterStrategy;
+
 	private KafkaTemplate<Object, Object> replyTemplate;
 
 	private KafkaAwareTransactionManager<Object, Object> transactionManager;
@@ -55,6 +59,8 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 	private BatchErrorHandler batchErrorHandler;
 
 	private AfterRollbackProcessor<Object, Object> afterRollbackProcessor;
+
+	private RecordInterceptor<Object, Object> recordInterceptor;
 
 	/**
 	 * Set the {@link KafkaProperties} to use.
@@ -70,6 +76,14 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 	 */
 	void setMessageConverter(MessageConverter messageConverter) {
 		this.messageConverter = messageConverter;
+	}
+
+	/**
+	 * Set the {@link RecordFilterStrategy} to use to filter incoming records.
+	 * @param recordFilterStrategy the record filter strategy
+	 */
+	void setRecordFilterStrategy(RecordFilterStrategy<Object, Object> recordFilterStrategy) {
+		this.recordFilterStrategy = recordFilterStrategy;
 	}
 
 	/**
@@ -122,6 +136,14 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 	}
 
 	/**
+	 * Set the {@link RecordInterceptor} to use.
+	 * @param recordInterceptor the record interceptor.
+	 */
+	void setRecordInterceptor(RecordInterceptor<Object, Object> recordInterceptor) {
+		this.recordInterceptor = recordInterceptor;
+	}
+
+	/**
 	 * Configure the specified Kafka listener container factory. The factory can be
 	 * further tuned and default settings can be overridden.
 	 * @param listenerFactory the {@link ConcurrentKafkaListenerContainerFactory} instance
@@ -140,6 +162,7 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 		Listener properties = this.properties.getListener();
 		map.from(properties::getConcurrency).to(factory::setConcurrency);
 		map.from(this.messageConverter).to(factory::setMessageConverter);
+		map.from(this.recordFilterStrategy).to(factory::setRecordFilterStrategy);
 		map.from(this.replyTemplate).to(factory::setReplyTemplate);
 		if (properties.getType().equals(Listener.Type.BATCH)) {
 			factory.setBatchListener(true);
@@ -149,6 +172,7 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 			factory.setErrorHandler(this.errorHandler);
 		}
 		map.from(this.afterRollbackProcessor).to(factory::setAfterRollbackProcessor);
+		map.from(this.recordInterceptor).to(factory::setRecordInterceptor);
 	}
 
 	private void configureContainer(ContainerProperties container) {
@@ -160,6 +184,7 @@ public class ConcurrentKafkaListenerContainerFactoryConfigurer {
 		map.from(properties::getAckTime).as(Duration::toMillis).to(container::setAckTime);
 		map.from(properties::getPollTimeout).as(Duration::toMillis).to(container::setPollTimeout);
 		map.from(properties::getNoPollThreshold).to(container::setNoPollThreshold);
+		map.from(properties.getIdleBetweenPolls()).as(Duration::toMillis).to(container::setIdleBetweenPolls);
 		map.from(properties::getIdleEventInterval).as(Duration::toMillis).to(container::setIdleEventInterval);
 		map.from(properties::getMonitorInterval).as(Duration::getSeconds).as(Number::intValue)
 				.to(container::setMonitorInterval);

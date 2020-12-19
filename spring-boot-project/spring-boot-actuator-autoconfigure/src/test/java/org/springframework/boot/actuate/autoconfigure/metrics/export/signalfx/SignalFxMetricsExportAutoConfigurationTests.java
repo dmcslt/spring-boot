@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,15 @@ class SignalFxMetricsExportAutoConfigurationTests {
 	}
 
 	@Test
-	void autoConfigurationCanBeDisabled() {
+	void autoConfigurationCanBeDisabledWithDefaultsEnabledProperty() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.defaults.enabled=false")
+				.run((context) -> assertThat(context).doesNotHaveBean(SignalFxMeterRegistry.class)
+						.doesNotHaveBean(SignalFxConfig.class));
+	}
+
+	@Test
+	void autoConfigurationCanBeDisabledWithSpecificEnabledProperty() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
 				.withPropertyValues("management.metrics.export.signalfx.enabled=false")
 				.run((context) -> assertThat(context).doesNotHaveBean(SignalFxMeterRegistry.class)
@@ -98,7 +106,7 @@ class SignalFxMetricsExportAutoConfigurationTests {
 	static class BaseConfiguration {
 
 		@Bean
-		public Clock customClock() {
+		Clock customClock() {
 			return Clock.SYSTEM;
 		}
 
@@ -109,7 +117,7 @@ class SignalFxMetricsExportAutoConfigurationTests {
 	static class CustomConfigConfiguration {
 
 		@Bean
-		public SignalFxConfig customConfig() {
+		SignalFxConfig customConfig() {
 			return (key) -> {
 				if ("signalfx.accessToken".equals(key)) {
 					return "abcde";
@@ -125,7 +133,7 @@ class SignalFxMetricsExportAutoConfigurationTests {
 	static class CustomRegistryConfiguration {
 
 		@Bean
-		public SignalFxMeterRegistry customRegistry(SignalFxConfig config, Clock clock) {
+		SignalFxMeterRegistry customRegistry(SignalFxConfig config, Clock clock) {
 			return new SignalFxMeterRegistry(config, clock);
 		}
 

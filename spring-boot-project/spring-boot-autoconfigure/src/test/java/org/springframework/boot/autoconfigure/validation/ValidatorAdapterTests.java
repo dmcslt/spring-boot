@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.verify;
  */
 class ValidatorAdapterTests {
 
-	private ApplicationContextRunner contextRunner = new ApplicationContextRunner();
+	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner();
 
 	@Test
 	void wrapLocalValidatorFactoryBean() {
@@ -98,12 +98,12 @@ class ValidatorAdapterTests {
 	static class LocalValidatorFactoryBeanConfig {
 
 		@Bean
-		public LocalValidatorFactoryBean validator() {
+		LocalValidatorFactoryBean validator() {
 			return new LocalValidatorFactoryBean();
 		}
 
 		@Bean
-		public ValidatorAdapter wrapper(LocalValidatorFactoryBean validator) {
+		ValidatorAdapter wrapper(LocalValidatorFactoryBean validator) {
 			return new ValidatorAdapter(validator, true);
 		}
 
@@ -115,7 +115,7 @@ class ValidatorAdapterTests {
 		private final LocalValidatorFactoryBean validator = mock(LocalValidatorFactoryBean.class);
 
 		@Bean
-		public ValidatorAdapter wrapper() {
+		ValidatorAdapter wrapper() {
 			return new ValidatorAdapter(this.validator, false);
 		}
 
@@ -127,7 +127,7 @@ class ValidatorAdapterTests {
 		private final LocalValidatorFactoryBean validator = mock(LocalValidatorFactoryBean.class);
 
 		@Bean
-		public ValidatorAdapter wrapper() {
+		ValidatorAdapter wrapper() {
 			return new ValidatorAdapter(this.validator, true);
 		}
 

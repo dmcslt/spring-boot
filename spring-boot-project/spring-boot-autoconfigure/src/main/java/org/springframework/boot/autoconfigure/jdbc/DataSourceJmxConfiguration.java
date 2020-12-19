@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.boot.autoconfigure.jdbc;
 
 import java.sql.SQLException;
 
-import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -59,10 +58,10 @@ class DataSourceJmxConfiguration {
 		Hikari(DataSource dataSource, ObjectProvider<MBeanExporter> mBeanExporter) {
 			this.dataSource = dataSource;
 			this.mBeanExporter = mBeanExporter;
+			validateMBeans();
 		}
 
-		@PostConstruct
-		public void validateMBeans() {
+		private void validateMBeans() {
 			HikariDataSource hikariDataSource = DataSourceUnwrapper.unwrap(this.dataSource, HikariDataSource.class);
 			if (hikariDataSource != null && hikariDataSource.isRegisterMbeans()) {
 				this.mBeanExporter.ifUnique((exporter) -> exporter.addExcludedBean("dataSource"));
@@ -79,7 +78,7 @@ class DataSourceJmxConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean(name = "dataSourceMBean")
-		public Object dataSourceMBean(DataSource dataSource) {
+		Object dataSourceMBean(DataSource dataSource) {
 			DataSourceProxy dataSourceProxy = DataSourceUnwrapper.unwrap(dataSource, DataSourceProxy.class);
 			if (dataSourceProxy != null) {
 				try {

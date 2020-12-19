@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,8 +67,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link SpringBootTest @SpringBootTest}.
  *
  * @author Dave Syer
+ * @author Scott Frederick
  */
-@SpringBootTest
+@SpringBootTest(properties = { "server.error.include-message=always" })
 @DirtiesContext
 class BasicErrorControllerMockMvcTests {
 
@@ -90,11 +91,21 @@ class BasicErrorControllerMockMvcTests {
 	}
 
 	@Test
-	void testErrorWithResponseStatus() throws Exception {
+	void testErrorWithNotFoundResponseStatus() throws Exception {
 		MvcResult result = this.mockMvc.perform(get("/bang")).andExpect(status().isNotFound()).andReturn();
 		MvcResult response = this.mockMvc.perform(new ErrorDispatcher(result, "/error")).andReturn();
 		String content = response.getResponse().getContentAsString();
 		assertThat(content).contains("Expected!");
+	}
+
+	@Test
+	void testErrorWithNoContentResponseStatus() throws Exception {
+		MvcResult result = this.mockMvc.perform(get("/noContent").accept("some/thing"))
+				.andExpect(status().isNoContent()).andReturn();
+		MvcResult response = this.mockMvc.perform(new ErrorDispatcher(result, "/error"))
+				.andExpect(status().isNoContent()).andReturn();
+		String content = response.getResponse().getContentAsString();
+		assertThat(content).isEmpty();
 	}
 
 	@Test
@@ -107,7 +118,7 @@ class BasicErrorControllerMockMvcTests {
 		// And the rendered status code is always wrong (but would be 400 in a real
 		// system)
 		String content = response.getResponse().getContentAsString();
-		assertThat(content).contains("Error count: 1");
+		assertThat(content).contains("Validation failed");
 	}
 
 	@Test
@@ -130,15 +141,15 @@ class BasicErrorControllerMockMvcTests {
 
 	@Configuration(proxyBeanMethods = false)
 	@MinimalWebConfiguration
-	public static class TestConfiguration {
+	static class TestConfiguration {
 
 		// For manual testing
-		public static void main(String[] args) {
+		static void main(String[] args) {
 			SpringApplication.run(TestConfiguration.class, args);
 		}
 
 		@Bean
-		public View error() {
+		View error() {
 			return new AbstractView() {
 				@Override
 				protected void renderMergedOutputModel(Map<String, Object> model, HttpServletRequest request,
@@ -149,27 +160,32 @@ class BasicErrorControllerMockMvcTests {
 		}
 
 		@RestController
-		protected static class Errors {
-
-			public String getFoo() {
-				return "foo";
-			}
+		public static class Errors {
 
 			@RequestMapping("/")
-			public String home() {
+			String home() {
 				throw new IllegalStateException("Expected!");
 			}
 
 			@RequestMapping("/bang")
-			public String bang() {
+			String bang() {
 				throw new NotFoundException("Expected!");
 			}
 
 			@RequestMapping("/bind")
-			public String bind() throws Exception {
+			String bind() throws Exception {
 				BindException error = new BindException(this, "test");
 				error.rejectValue("foo", "bar.error");
 				throw error;
+			}
+
+			@RequestMapping("/noContent")
+			void noContent() throws Exception {
+				throw new NoContentException("Expected!");
+			}
+
+			public String getFoo() {
+				return "foo";
 			}
 
 		}
@@ -177,7 +193,7 @@ class BasicErrorControllerMockMvcTests {
 	}
 
 	@ResponseStatus(HttpStatus.NOT_FOUND)
-	private static class NotFoundException extends RuntimeException {
+	static class NotFoundException extends RuntimeException {
 
 		NotFoundException(String string) {
 			super(string);
@@ -185,11 +201,20 @@ class BasicErrorControllerMockMvcTests {
 
 	}
 
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	private static class NoContentException extends RuntimeException {
+
+		NoContentException(String string) {
+			super(string);
+		}
+
+	}
+
 	private class ErrorDispatcher implements RequestBuilder {
 
-		private MvcResult result;
+		private final MvcResult result;
 
-		private String path;
+		private final String path;
 
 		ErrorDispatcher(MvcResult result, String path) {
 			this.result = result;
@@ -201,6 +226,7 @@ class BasicErrorControllerMockMvcTests {
 			MockHttpServletRequest request = this.result.getRequest();
 			request.setDispatcherType(DispatcherType.ERROR);
 			request.setRequestURI(this.path);
+			request.setAttribute("javax.servlet.error.status_code", this.result.getResponse().getStatus());
 			return request;
 		}
 

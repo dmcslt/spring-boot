@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,19 +57,19 @@ class ClassPathFileSystemWatcherTests {
 	}
 
 	@Test
-	void configuredWithRestartStrategy(@TempDir File folder) throws Exception {
+	void configuredWithRestartStrategy(@TempDir File directory) throws Exception {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 		Map<String, Object> properties = new HashMap<>();
 		List<URL> urls = new ArrayList<>();
 		urls.add(new URL("https://spring.io"));
-		urls.add(folder.toURI().toURL());
+		urls.add(directory.toURI().toURL());
 		properties.put("urls", urls);
 		MapPropertySource propertySource = new MapPropertySource("test", properties);
 		context.getEnvironment().getPropertySources().addLast(propertySource);
 		context.register(Config.class);
 		context.refresh();
 		Thread.sleep(200);
-		File classFile = new File(folder, "Example.class");
+		File classFile = new File(directory, "Example.class");
 		FileCopyUtils.copy("file".getBytes(), classFile);
 		Thread.sleep(1000);
 		List<ClassPathChangedEvent> events = context.getBean(Listener.class).getEvents();
@@ -86,7 +86,7 @@ class ClassPathFileSystemWatcherTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	public static class Config {
+	static class Config {
 
 		public final Environment environment;
 
@@ -95,25 +95,25 @@ class ClassPathFileSystemWatcherTests {
 		}
 
 		@Bean
-		public ClassPathFileSystemWatcher watcher(ClassPathRestartStrategy restartStrategy) {
+		ClassPathFileSystemWatcher watcher(ClassPathRestartStrategy restartStrategy) {
 			FileSystemWatcher watcher = new FileSystemWatcher(false, Duration.ofMillis(100), Duration.ofMillis(10));
 			URL[] urls = this.environment.getProperty("urls", URL[].class);
 			return new ClassPathFileSystemWatcher(new MockFileSystemWatcherFactory(watcher), restartStrategy, urls);
 		}
 
 		@Bean
-		public ClassPathRestartStrategy restartStrategy() {
+		ClassPathRestartStrategy restartStrategy() {
 			return (file) -> false;
 		}
 
 		@Bean
-		public Listener listener() {
+		Listener listener() {
 			return new Listener();
 		}
 
 	}
 
-	public static class Listener implements ApplicationListener<ClassPathChangedEvent> {
+	static class Listener implements ApplicationListener<ClassPathChangedEvent> {
 
 		private List<ClassPathChangedEvent> events = new ArrayList<>();
 
@@ -122,13 +122,13 @@ class ClassPathFileSystemWatcherTests {
 			this.events.add(event);
 		}
 
-		public List<ClassPathChangedEvent> getEvents() {
+		List<ClassPathChangedEvent> getEvents() {
 			return this.events;
 		}
 
 	}
 
-	private static class MockFileSystemWatcherFactory implements FileSystemWatcherFactory {
+	static class MockFileSystemWatcherFactory implements FileSystemWatcherFactory {
 
 		private final FileSystemWatcher watcher;
 

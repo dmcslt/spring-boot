@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import javax.sql.DataSource;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.core.Ordered;
 
@@ -29,16 +29,14 @@ import org.springframework.core.Ordered;
  * initialized as soon as a {@link DataSource} is.
  *
  * @author Dave Syer
- * @since 1.1.2
  */
-class DataSourceInitializerPostProcessor implements BeanPostProcessor, Ordered {
+class DataSourceInitializerPostProcessor implements BeanPostProcessor, Ordered, BeanFactoryAware {
 
 	@Override
 	public int getOrder() {
 		return Ordered.HIGHEST_PRECEDENCE + 1;
 	}
 
-	@Autowired
 	private BeanFactory beanFactory;
 
 	@Override
@@ -53,6 +51,11 @@ class DataSourceInitializerPostProcessor implements BeanPostProcessor, Ordered {
 			this.beanFactory.getBean(DataSourceInitializerInvoker.class);
 		}
 		return bean;
+	}
+
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+		this.beanFactory = beanFactory;
 	}
 
 }

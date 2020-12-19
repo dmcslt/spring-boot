@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.boot;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -55,7 +56,7 @@ class SpringApplicationBannerPrinter {
 		this.fallbackBanner = fallbackBanner;
 	}
 
-	public Banner print(Environment environment, Class<?> sourceClass, Log logger) {
+	Banner print(Environment environment, Class<?> sourceClass, Log logger) {
 		Banner banner = getBanner(environment);
 		try {
 			logger.info(createStringFromBanner(banner, environment, sourceClass));
@@ -66,7 +67,7 @@ class SpringApplicationBannerPrinter {
 		return new PrintedBanner(banner, sourceClass);
 	}
 
-	public Banner print(Environment environment, Class<?> sourceClass, PrintStream out) {
+	Banner print(Environment environment, Class<?> sourceClass, PrintStream out) {
 		Banner banner = getBanner(environment);
 		banner.printBanner(environment, sourceClass, out);
 		return new PrintedBanner(banner, sourceClass);
@@ -88,8 +89,13 @@ class SpringApplicationBannerPrinter {
 	private Banner getTextBanner(Environment environment) {
 		String location = environment.getProperty(BANNER_LOCATION_PROPERTY, DEFAULT_BANNER_LOCATION);
 		Resource resource = this.resourceLoader.getResource(location);
-		if (resource.exists()) {
-			return new ResourceBanner(resource);
+		try {
+			if (resource.exists() && !resource.getURL().toExternalForm().contains("liquibase-core")) {
+				return new ResourceBanner(resource);
+			}
+		}
+		catch (IOException ex) {
+			// Ignore
 		}
 		return null;
 	}
@@ -124,13 +130,13 @@ class SpringApplicationBannerPrinter {
 
 		private final List<Banner> banners = new ArrayList<>();
 
-		public void addIfNotNull(Banner banner) {
+		void addIfNotNull(Banner banner) {
 			if (banner != null) {
 				this.banners.add(banner);
 			}
 		}
 
-		public boolean hasAtLeastOneBanner() {
+		boolean hasAtLeastOneBanner() {
 			return !this.banners.isEmpty();
 		}
 

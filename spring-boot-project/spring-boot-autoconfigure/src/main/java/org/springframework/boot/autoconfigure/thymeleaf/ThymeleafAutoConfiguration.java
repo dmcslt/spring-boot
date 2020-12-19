@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.boot.autoconfigure.thymeleaf;
 
 import java.util.LinkedHashMap;
 
-import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 
 import com.github.mxab.thymeleaf.extras.dataattribute.dialect.DataAttributeDialect;
@@ -28,6 +27,7 @@ import org.apache.commons.logging.LogFactory;
 import org.thymeleaf.dialect.IDialect;
 import org.thymeleaf.extras.java8time.dialect.Java8TimeDialect;
 import org.thymeleaf.extras.springsecurity5.dialect.SpringSecurityDialect;
+import org.thymeleaf.spring5.ISpringTemplateEngine;
 import org.thymeleaf.spring5.ISpringWebFluxTemplateEngine;
 import org.thymeleaf.spring5.SpringTemplateEngine;
 import org.thymeleaf.spring5.SpringWebFluxTemplateEngine;
@@ -73,6 +73,7 @@ import org.springframework.web.servlet.resource.ResourceUrlEncodingFilter;
  * @author Daniel Fernández
  * @author Kazuki Shimizu
  * @author Artsiom Yudovin
+ * @since 1.0.0
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ThymeleafProperties.class)
@@ -93,10 +94,10 @@ public class ThymeleafAutoConfiguration {
 		DefaultTemplateResolverConfiguration(ThymeleafProperties properties, ApplicationContext applicationContext) {
 			this.properties = properties;
 			this.applicationContext = applicationContext;
+			checkTemplateLocationExists();
 		}
 
-		@PostConstruct
-		public void checkTemplateLocationExists() {
+		private void checkTemplateLocationExists() {
 			boolean checkTemplateLocation = this.properties.isCheckTemplateLocation();
 			if (checkTemplateLocation) {
 				TemplateLocation location = new TemplateLocation(this.properties.getPrefix());
@@ -108,7 +109,7 @@ public class ThymeleafAutoConfiguration {
 		}
 
 		@Bean
-		public SpringResourceTemplateResolver defaultTemplateResolver() {
+		SpringResourceTemplateResolver defaultTemplateResolver() {
 			SpringResourceTemplateResolver resolver = new SpringResourceTemplateResolver();
 			resolver.setApplicationContext(this.applicationContext);
 			resolver.setPrefix(this.properties.getPrefix());
@@ -132,8 +133,8 @@ public class ThymeleafAutoConfiguration {
 	protected static class ThymeleafDefaultConfiguration {
 
 		@Bean
-		@ConditionalOnMissingBean
-		public SpringTemplateEngine templateEngine(ThymeleafProperties properties,
+		@ConditionalOnMissingBean(ISpringTemplateEngine.class)
+		SpringTemplateEngine templateEngine(ThymeleafProperties properties,
 				ObjectProvider<ITemplateResolver> templateResolvers, ObjectProvider<IDialect> dialects) {
 			SpringTemplateEngine engine = new SpringTemplateEngine();
 			engine.setEnableSpringELCompiler(properties.isEnableSpringElCompiler());
@@ -153,7 +154,7 @@ public class ThymeleafAutoConfiguration {
 		@Bean
 		@ConditionalOnEnabledResourceChain
 		@ConditionalOnMissingFilterBean(ResourceUrlEncodingFilter.class)
-		public FilterRegistrationBean<ResourceUrlEncodingFilter> resourceUrlEncodingFilter() {
+		FilterRegistrationBean<ResourceUrlEncodingFilter> resourceUrlEncodingFilter() {
 			FilterRegistrationBean<ResourceUrlEncodingFilter> registration = new FilterRegistrationBean<>(
 					new ResourceUrlEncodingFilter());
 			registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ERROR);
@@ -165,7 +166,7 @@ public class ThymeleafAutoConfiguration {
 
 			@Bean
 			@ConditionalOnMissingBean(name = "thymeleafViewResolver")
-			public ThymeleafViewResolver thymeleafViewResolver(ThymeleafProperties properties,
+			ThymeleafViewResolver thymeleafViewResolver(ThymeleafProperties properties,
 					SpringTemplateEngine templateEngine) {
 				ThymeleafViewResolver resolver = new ThymeleafViewResolver();
 				resolver.setTemplateEngine(templateEngine);
@@ -204,7 +205,7 @@ public class ThymeleafAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean(ISpringWebFluxTemplateEngine.class)
-		public SpringWebFluxTemplateEngine templateEngine(ThymeleafProperties properties,
+		SpringWebFluxTemplateEngine templateEngine(ThymeleafProperties properties,
 				ObjectProvider<ITemplateResolver> templateResolvers, ObjectProvider<IDialect> dialects) {
 			SpringWebFluxTemplateEngine engine = new SpringWebFluxTemplateEngine();
 			engine.setEnableSpringELCompiler(properties.isEnableSpringElCompiler());
@@ -223,7 +224,7 @@ public class ThymeleafAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean(name = "thymeleafReactiveViewResolver")
-		public ThymeleafReactiveViewResolver thymeleafViewResolver(ISpringWebFluxTemplateEngine templateEngine,
+		ThymeleafReactiveViewResolver thymeleafViewResolver(ISpringWebFluxTemplateEngine templateEngine,
 				ThymeleafProperties properties) {
 			ThymeleafReactiveViewResolver resolver = new ThymeleafReactiveViewResolver();
 			resolver.setTemplateEngine(templateEngine);
@@ -255,11 +256,11 @@ public class ThymeleafAutoConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(LayoutDialect.class)
-	protected static class ThymeleafWebLayoutConfiguration {
+	static class ThymeleafWebLayoutConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public LayoutDialect layoutDialect() {
+		LayoutDialect layoutDialect() {
 			return new LayoutDialect();
 		}
 
@@ -267,11 +268,11 @@ public class ThymeleafAutoConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(DataAttributeDialect.class)
-	protected static class DataAttributeDialectConfiguration {
+	static class DataAttributeDialectConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public DataAttributeDialect dialect() {
+		DataAttributeDialect dialect() {
 			return new DataAttributeDialect();
 		}
 
@@ -279,11 +280,11 @@ public class ThymeleafAutoConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass({ SpringSecurityDialect.class })
-	protected static class ThymeleafSecurityDialectConfiguration {
+	static class ThymeleafSecurityDialectConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public SpringSecurityDialect securityDialect() {
+		SpringSecurityDialect securityDialect() {
 			return new SpringSecurityDialect();
 		}
 
@@ -291,11 +292,11 @@ public class ThymeleafAutoConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(Java8TimeDialect.class)
-	protected static class ThymeleafJava8TimeDialect {
+	static class ThymeleafJava8TimeDialect {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public Java8TimeDialect java8TimeDialect() {
+		Java8TimeDialect java8TimeDialect() {
 			return new Java8TimeDialect();
 		}
 

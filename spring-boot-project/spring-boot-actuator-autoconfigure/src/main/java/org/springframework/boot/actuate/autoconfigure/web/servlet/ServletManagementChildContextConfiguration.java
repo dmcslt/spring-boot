@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import org.springframework.boot.autoconfigure.web.embedded.TomcatWebServerFactor
 import org.springframework.boot.autoconfigure.web.embedded.UndertowWebServerFactoryCustomizer;
 import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryCustomizer;
 import org.springframework.boot.autoconfigure.web.servlet.TomcatServletWebServerFactoryCustomizer;
+import org.springframework.boot.autoconfigure.web.servlet.UndertowServletWebServerFactoryCustomizer;
 import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.embedded.undertow.UndertowServletWebServerFactory;
@@ -68,31 +69,31 @@ import org.springframework.util.StringUtils;
  * @author Eddú Meléndez
  * @author Phillip Webb
  */
-@ManagementContextConfiguration(ManagementContextType.CHILD)
+@ManagementContextConfiguration(value = ManagementContextType.CHILD, proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = Type.SERVLET)
 class ServletManagementChildContextConfiguration {
 
 	@Bean
-	public ServletManagementWebServerFactoryCustomizer servletManagementWebServerFactoryCustomizer(
+	ServletManagementWebServerFactoryCustomizer servletManagementWebServerFactoryCustomizer(
 			ListableBeanFactory beanFactory) {
 		return new ServletManagementWebServerFactoryCustomizer(beanFactory);
 	}
 
 	@Bean
 	@ConditionalOnClass(name = "io.undertow.Undertow")
-	public UndertowAccessLogCustomizer undertowManagementAccessLogCustomizer() {
+	UndertowAccessLogCustomizer undertowManagementAccessLogCustomizer() {
 		return new UndertowAccessLogCustomizer();
 	}
 
 	@Bean
 	@ConditionalOnClass(name = "org.apache.catalina.valves.AccessLogValve")
-	public TomcatAccessLogCustomizer tomcatManagementAccessLogCustomizer() {
+	TomcatAccessLogCustomizer tomcatManagementAccessLogCustomizer() {
 		return new TomcatAccessLogCustomizer();
 	}
 
 	@Bean
 	@ConditionalOnClass(name = "org.eclipse.jetty.server.Server")
-	public JettyAccessLogCustomizer jettyManagementAccessLogCustomizer() {
+	JettyAccessLogCustomizer jettyManagementAccessLogCustomizer() {
 		return new JettyAccessLogCustomizer();
 	}
 
@@ -102,7 +103,7 @@ class ServletManagementChildContextConfiguration {
 	static class ServletManagementContextSecurityConfiguration {
 
 		@Bean
-		public Filter springSecurityFilterChain(HierarchicalBeanFactory beanFactory) {
+		Filter springSecurityFilterChain(HierarchicalBeanFactory beanFactory) {
 			BeanFactory parent = beanFactory.getParentBeanFactory();
 			return parent.getBean(BeanIds.SPRING_SECURITY_FILTER_CHAIN, Filter.class);
 		}
@@ -115,14 +116,20 @@ class ServletManagementChildContextConfiguration {
 		ServletManagementWebServerFactoryCustomizer(ListableBeanFactory beanFactory) {
 			super(beanFactory, ServletWebServerFactoryCustomizer.class, TomcatServletWebServerFactoryCustomizer.class,
 					TomcatWebServerFactoryCustomizer.class, JettyWebServerFactoryCustomizer.class,
-					UndertowWebServerFactoryCustomizer.class);
+					UndertowServletWebServerFactoryCustomizer.class, UndertowWebServerFactoryCustomizer.class);
 		}
 
 		@Override
 		protected void customize(ConfigurableServletWebServerFactory webServerFactory,
 				ManagementServerProperties managementServerProperties, ServerProperties serverProperties) {
 			super.customize(webServerFactory, managementServerProperties, serverProperties);
-			webServerFactory.setContextPath(managementServerProperties.getServlet().getContextPath());
+			webServerFactory.setContextPath(getContextPath(managementServerProperties));
+		}
+
+		@SuppressWarnings("deprecation")
+		private String getContextPath(ManagementServerProperties managementServerProperties) {
+			String basePath = managementServerProperties.getBasePath();
+			return StringUtils.hasText(basePath) ? basePath : managementServerProperties.getServlet().getContextPath();
 		}
 
 	}
@@ -189,7 +196,7 @@ class ServletManagementChildContextConfiguration {
 
 		private void customizeServer(Server server) {
 			RequestLog requestLog = server.getRequestLog();
-			if (requestLog != null && requestLog instanceof CustomRequestLog) {
+			if (requestLog instanceof CustomRequestLog) {
 				customizeRequestLog((CustomRequestLog) requestLog);
 			}
 		}

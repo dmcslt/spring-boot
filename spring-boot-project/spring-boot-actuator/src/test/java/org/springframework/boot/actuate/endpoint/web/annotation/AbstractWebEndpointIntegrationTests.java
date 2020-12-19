@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import org.springframework.boot.actuate.endpoint.annotation.DeleteOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
+import org.springframework.boot.actuate.endpoint.annotation.Selector.Match;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.context.ApplicationContext;
@@ -50,6 +51,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.lang.Nullable;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.util.StringUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -59,6 +61,7 @@ import static org.mockito.Mockito.verify;
  *
  * @param <T> the type of application context used by the tests
  * @author Andy Wilkinson
+ * @author Scott Frederick
  */
 public abstract class AbstractWebEndpointIntegrationTests<T extends ConfigurableApplicationContext & AnnotationConfigRegistry> {
 
@@ -125,6 +128,20 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	}
 
 	@Test
+	void matchAllRemainingPathsSelectorShouldMatchFullPath() {
+		load(MatchAllRemainingEndpointConfiguration.class,
+				(client) -> client.get().uri("/matchallremaining/one/two/three").exchange().expectStatus().isOk()
+						.expectBody().jsonPath("selection").isEqualTo("one|two|three"));
+	}
+
+	@Test
+	void matchAllRemainingPathsSelectorShouldDecodePath() {
+		load(MatchAllRemainingEndpointConfiguration.class,
+				(client) -> client.get().uri("/matchallremaining/one/two%20three/").exchange().expectStatus().isOk()
+						.expectBody().jsonPath("selection").isEqualTo("one|two three"));
+	}
+
+	@Test
 	void readOperationWithSingleQueryParameters() {
 		load(QueryEndpointConfiguration.class, (client) -> client.get().uri("/query?one=1&two=2").exchange()
 				.expectStatus().isOk().expectBody().jsonPath("query").isEqualTo("1 2"));
@@ -163,7 +180,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 			Map<String, Object> body = new HashMap<>();
 			body.put("foo", "one");
 			body.put("bar", "two");
-			client.post().uri("/test").syncBody(body).exchange().expectStatus().isNoContent().expectBody().isEmpty();
+			client.post().uri("/test").bodyValue(body).exchange().expectStatus().isNoContent().expectBody().isEmpty();
 		});
 	}
 
@@ -194,7 +211,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 		load(TestEndpointConfiguration.class, (context, client) -> {
 			Map<String, Object> body = new HashMap<>();
 			body.put("foo", "one");
-			client.post().uri("/test").syncBody(body).exchange().expectStatus().isNoContent().expectBody().isEmpty();
+			client.post().uri("/test").bodyValue(body).exchange().expectStatus().isNoContent().expectBody().isEmpty();
 			verify(context.getBean(EndpointDelegate.class)).write("one", null);
 		});
 	}
@@ -363,6 +380,12 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 				.expectStatus().isOk().expectBody(String.class).isEqualTo("ACTUATOR: true"));
 	}
 
+	@Test
+	void endpointCanProduceAResponseWithACustomStatus() {
+		load((context) -> context.register(CustomResponseStatusEndpointConfiguration.class),
+				(client) -> client.get().uri("/customstatus").exchange().expectStatus().isEqualTo(234));
+	}
+
 	protected abstract int getPort(T context);
 
 	protected void validateErrorBody(WebTestClient.BodyContentSpec body, HttpStatus status, String path,
@@ -393,8 +416,10 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 			BiConsumer<ApplicationContext, WebTestClient> consumer) {
 		T applicationContext = this.applicationContextSupplier.get();
 		contextCustomizer.accept(applicationContext);
-		applicationContext.getEnvironment().getPropertySources()
-				.addLast(new MapPropertySource("test", Collections.singletonMap("endpointPath", endpointPath)));
+		Map<String, Object> properties = new HashMap<>();
+		properties.put("endpointPath", endpointPath);
+		properties.put("server.error.include-message", "always");
+		applicationContext.getEnvironment().getPropertySources().addLast(new MapPropertySource("test", properties));
 		applicationContext.refresh();
 		try {
 			InetSocketAddress address = new InetSocketAddress(getPort(applicationContext));
@@ -420,10 +445,21 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 
 	@Configuration(proxyBeanMethods = false)
 	@Import(BaseConfiguration.class)
+	static class MatchAllRemainingEndpointConfiguration {
+
+		@Bean
+		MatchAllRemainingEndpoint matchAllRemainingEndpoint() {
+			return new MatchAllRemainingEndpoint();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@Import(BaseConfiguration.class)
 	static class QueryEndpointConfiguration {
 
 		@Bean
-		public QueryEndpoint queryEndpoint() {
+		QueryEndpoint queryEndpoint() {
 			return new QueryEndpoint();
 		}
 
@@ -434,7 +470,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class QueryWithListEndpointConfiguration {
 
 		@Bean
-		public QueryWithListEndpoint queryEndpoint() {
+		QueryWithListEndpoint queryEndpoint() {
 			return new QueryWithListEndpoint();
 		}
 
@@ -445,7 +481,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class VoidWriteResponseEndpointConfiguration {
 
 		@Bean
-		public VoidWriteResponseEndpoint voidWriteResponseEndpoint(EndpointDelegate delegate) {
+		VoidWriteResponseEndpoint voidWriteResponseEndpoint(EndpointDelegate delegate) {
 			return new VoidWriteResponseEndpoint(delegate);
 		}
 
@@ -456,7 +492,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class VoidDeleteResponseEndpointConfiguration {
 
 		@Bean
-		public VoidDeleteResponseEndpoint voidDeleteResponseEndpoint(EndpointDelegate delegate) {
+		VoidDeleteResponseEndpoint voidDeleteResponseEndpoint(EndpointDelegate delegate) {
 			return new VoidDeleteResponseEndpoint(delegate);
 		}
 
@@ -467,7 +503,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class NullWriteResponseEndpointConfiguration {
 
 		@Bean
-		public NullWriteResponseEndpoint nullWriteResponseEndpoint(EndpointDelegate delegate) {
+		NullWriteResponseEndpoint nullWriteResponseEndpoint(EndpointDelegate delegate) {
 			return new NullWriteResponseEndpoint(delegate);
 		}
 
@@ -478,7 +514,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class NullReadResponseEndpointConfiguration {
 
 		@Bean
-		public NullReadResponseEndpoint nullResponseEndpoint() {
+		NullReadResponseEndpoint nullResponseEndpoint() {
 			return new NullReadResponseEndpoint();
 		}
 
@@ -489,7 +525,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class NullDeleteResponseEndpointConfiguration {
 
 		@Bean
-		public NullDeleteResponseEndpoint nullDeleteResponseEndpoint() {
+		NullDeleteResponseEndpoint nullDeleteResponseEndpoint() {
 			return new NullDeleteResponseEndpoint();
 		}
 
@@ -511,7 +547,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class ResourceWebEndpointResponseEndpointConfiguration {
 
 		@Bean
-		public ResourceWebEndpointResponseEndpoint resourceEndpoint() {
+		ResourceWebEndpointResponseEndpoint resourceEndpoint() {
 			return new ResourceWebEndpointResponseEndpoint();
 		}
 
@@ -522,7 +558,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class MonoResponseEndpointConfiguration {
 
 		@Bean
-		public MonoResponseEndpoint testEndpoint(EndpointDelegate endpointDelegate) {
+		MonoResponseEndpoint testEndpoint(EndpointDelegate endpointDelegate) {
 			return new MonoResponseEndpoint();
 		}
 
@@ -533,7 +569,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class CustomMediaTypesEndpointConfiguration {
 
 		@Bean
-		public CustomMediaTypesEndpoint customMediaTypesEndpoint() {
+		CustomMediaTypesEndpoint customMediaTypesEndpoint() {
 			return new CustomMediaTypesEndpoint();
 		}
 
@@ -544,7 +580,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class RequiredParameterEndpointConfiguration {
 
 		@Bean
-		public RequiredParametersEndpoint requiredParametersEndpoint() {
+		RequiredParametersEndpoint requiredParametersEndpoint() {
 			return new RequiredParametersEndpoint();
 		}
 
@@ -552,10 +588,10 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 
 	@Configuration(proxyBeanMethods = false)
 	@Import(BaseConfiguration.class)
-	protected static class PrincipalEndpointConfiguration {
+	static class PrincipalEndpointConfiguration {
 
 		@Bean
-		public PrincipalEndpoint principalEndpoint() {
+		PrincipalEndpoint principalEndpoint() {
 			return new PrincipalEndpoint();
 		}
 
@@ -563,10 +599,10 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 
 	@Configuration(proxyBeanMethods = false)
 	@Import(BaseConfiguration.class)
-	protected static class PrincipalQueryEndpointConfiguration {
+	static class PrincipalQueryEndpointConfiguration {
 
 		@Bean
-		public PrincipalQueryEndpoint principalQueryEndpoint() {
+		PrincipalQueryEndpoint principalQueryEndpoint() {
 			return new PrincipalQueryEndpoint();
 		}
 
@@ -574,10 +610,10 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 
 	@Configuration(proxyBeanMethods = false)
 	@Import(BaseConfiguration.class)
-	protected static class SecurityContextEndpointConfiguration {
+	static class SecurityContextEndpointConfiguration {
 
 		@Bean
-		public SecurityContextEndpoint securityContextEndpoint() {
+		SecurityContextEndpoint securityContextEndpoint() {
 			return new SecurityContextEndpoint();
 		}
 
@@ -585,11 +621,22 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 
 	@Configuration(proxyBeanMethods = false)
 	@Import(BaseConfiguration.class)
-	protected static class UserInRoleEndpointConfiguration {
+	static class UserInRoleEndpointConfiguration {
 
 		@Bean
-		public UserInRoleEndpoint userInRoleEndpoint() {
+		UserInRoleEndpoint userInRoleEndpoint() {
 			return new UserInRoleEndpoint();
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@Import(BaseConfiguration.class)
+	static class CustomResponseStatusEndpointConfiguration {
+
+		@Bean
+		CustomResponseStatusEndpoint customResponseStatusEndpoint() {
+			return new CustomResponseStatusEndpoint();
 		}
 
 	}
@@ -604,23 +651,33 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 		}
 
 		@ReadOperation
-		public Map<String, Object> readAll() {
+		Map<String, Object> readAll() {
 			return Collections.singletonMap("All", true);
 		}
 
 		@ReadOperation
-		public Map<String, Object> readPart(@Selector String part) {
+		Map<String, Object> readPart(@Selector String part) {
 			return Collections.singletonMap("part", part);
 		}
 
 		@WriteOperation
-		public void write(@Nullable String foo, @Nullable String bar) {
+		void write(@Nullable String foo, @Nullable String bar) {
 			this.endpointDelegate.write(foo, bar);
 		}
 
 		@DeleteOperation
-		public Map<String, Object> deletePart(@Selector String part) {
+		Map<String, Object> deletePart(@Selector String part) {
 			return Collections.singletonMap("part", part);
+		}
+
+	}
+
+	@Endpoint(id = "matchallremaining")
+	static class MatchAllRemainingEndpoint {
+
+		@ReadOperation
+		Map<String, String> select(@Selector(match = Match.ALL_REMAINING) String... selection) {
+			return Collections.singletonMap("selection", StringUtils.arrayToDelimitedString(selection, "|"));
 		}
 
 	}
@@ -629,12 +686,12 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class QueryEndpoint {
 
 		@ReadOperation
-		public Map<String, String> query(String one, Integer two) {
+		Map<String, String> query(String one, Integer two) {
 			return Collections.singletonMap("query", one + " " + two);
 		}
 
 		@ReadOperation
-		public Map<String, String> queryWithParameterList(@Selector String list, String one, List<String> two) {
+		Map<String, String> queryWithParameterList(@Selector String list, String one, List<String> two) {
 			return Collections.singletonMap("query", list + " " + one + " " + two);
 		}
 
@@ -644,7 +701,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class QueryWithListEndpoint {
 
 		@ReadOperation
-		public Map<String, String> queryWithParameterList(String one, List<String> two) {
+		Map<String, String> queryWithParameterList(String one, List<String> two) {
 			return Collections.singletonMap("query", one + " " + two);
 		}
 
@@ -660,7 +717,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 		}
 
 		@WriteOperation
-		public void write() {
+		void write() {
 			this.delegate.write();
 		}
 
@@ -676,7 +733,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 		}
 
 		@DeleteOperation
-		public void delete() {
+		void delete() {
 			this.delegate.delete();
 		}
 
@@ -692,7 +749,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 		}
 
 		@WriteOperation
-		public Object write() {
+		Object write() {
 			this.delegate.write();
 			return null;
 		}
@@ -703,7 +760,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class NullReadResponseEndpoint {
 
 		@ReadOperation
-		public String readReturningNull() {
+		String readReturningNull() {
 			return null;
 		}
 
@@ -713,7 +770,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class NullDeleteResponseEndpoint {
 
 		@DeleteOperation
-		public String deleteReturningNull() {
+		String deleteReturningNull() {
 			return null;
 		}
 
@@ -723,7 +780,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class ResourceEndpoint {
 
 		@ReadOperation
-		public Resource read() {
+		Resource read() {
 			return new ByteArrayResource(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
 		}
 
@@ -733,7 +790,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class ResourceWebEndpointResponseEndpoint {
 
 		@ReadOperation
-		public WebEndpointResponse<Resource> read() {
+		WebEndpointResponse<Resource> read() {
 			return new WebEndpointResponse<>(new ByteArrayResource(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }), 200);
 		}
 
@@ -753,7 +810,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class CustomMediaTypesEndpoint {
 
 		@ReadOperation(produces = "text/plain")
-		public String read() {
+		String read() {
 			return "read";
 		}
 
@@ -763,7 +820,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class RequiredParametersEndpoint {
 
 		@ReadOperation
-		public String read(String foo, @Nullable String bar) {
+		String read(String foo, @Nullable String bar) {
 			return foo;
 		}
 
@@ -773,7 +830,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class PrincipalEndpoint {
 
 		@ReadOperation
-		public String read(@Nullable Principal principal) {
+		String read(@Nullable Principal principal) {
 			return (principal != null) ? principal.getName() : "None";
 		}
 
@@ -783,7 +840,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class PrincipalQueryEndpoint {
 
 		@ReadOperation
-		public String read(String principal) {
+		String read(String principal) {
 			return principal;
 		}
 
@@ -793,7 +850,7 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class SecurityContextEndpoint {
 
 		@ReadOperation
-		public String read(SecurityContext securityContext) {
+		String read(SecurityContext securityContext) {
 			Principal principal = securityContext.getPrincipal();
 			return (principal != null) ? principal.getName() : "None";
 		}
@@ -804,13 +861,23 @@ public abstract class AbstractWebEndpointIntegrationTests<T extends Configurable
 	static class UserInRoleEndpoint {
 
 		@ReadOperation
-		public String read(SecurityContext securityContext, String role) {
+		String read(SecurityContext securityContext, String role) {
 			return role + ": " + securityContext.isUserInRole(role);
 		}
 
 	}
 
-	public interface EndpointDelegate {
+	@Endpoint(id = "customstatus")
+	static class CustomResponseStatusEndpoint {
+
+		@ReadOperation
+		WebEndpointResponse<String> read() {
+			return new WebEndpointResponse<>("Custom status", 234);
+		}
+
+	}
+
+	interface EndpointDelegate {
 
 		void write();
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.context.properties.bind;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -592,6 +593,18 @@ class MapBinderTests {
 		assertThat(result.getValues()).containsExactly(entry("a", "b"));
 	}
 
+	@Test
+	void bindToMapWithWildcardShouldConvertToTheRightType() {
+		// gh-18767
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.addresses.localhost[0]", "127.0.0.1");
+		source.put("foo.addresses.localhost[1]", "127.0.0.2");
+		this.sources.add(source);
+		MapWithWildcardProperties result = this.binder.bind("foo", Bindable.of(MapWithWildcardProperties.class)).get();
+		assertThat(result.getAddresses().get("localhost").stream().map(InetAddress::getHostAddress))
+				.containsExactly("127.0.0.1", "127.0.0.2");
+	}
+
 	private <K, V> Bindable<Map<K, V>> getMapBindable(Class<K> keyGeneric, ResolvableType valueType) {
 		ResolvableType keyType = ResolvableType.forClass(keyGeneric);
 		return Bindable.of(ResolvableType.forClassWithGenerics(Map.class, keyType, valueType));
@@ -601,7 +614,7 @@ class MapBinderTests {
 		return Bindable.of(ResolvableType.forClassWithGenerics(List.class, type));
 	}
 
-	public static class Foo {
+	static class Foo {
 
 		private String pattern;
 
@@ -612,11 +625,11 @@ class MapBinderTests {
 			this.pattern = pattern;
 		}
 
-		public String getPattern() {
+		String getPattern() {
 			return this.pattern;
 		}
 
-		public void setPattern(String pattern) {
+		void setPattern(String pattern) {
 			this.pattern = pattern;
 		}
 
@@ -628,15 +641,15 @@ class MapBinderTests {
 
 		private String value;
 
-		public Map<String, NestableFoo> getFoos() {
+		Map<String, NestableFoo> getFoos() {
 			return this.foos;
 		}
 
-		public String getValue() {
+		String getValue() {
 			return this.value;
 		}
 
-		public void setValue(String value) {
+		void setValue(String value) {
 			this.value = value;
 		}
 
@@ -651,22 +664,22 @@ class MapBinderTests {
 
 	}
 
-	public static class ExampleCustomNoDefaultConstructorBean {
+	static class ExampleCustomNoDefaultConstructorBean {
 
 		private MyCustomNoDefaultConstructorMap items = new MyCustomNoDefaultConstructorMap(
 				Collections.singletonMap("foo", "bar"));
 
-		public MyCustomNoDefaultConstructorMap getItems() {
+		MyCustomNoDefaultConstructorMap getItems() {
 			return this.items;
 		}
 
-		public void setItems(MyCustomNoDefaultConstructorMap items) {
+		void setItems(MyCustomNoDefaultConstructorMap items) {
 			this.items = items;
 		}
 
 	}
 
-	public static class MyCustomNoDefaultConstructorMap extends HashMap<String, String> {
+	static class MyCustomNoDefaultConstructorMap extends HashMap<String, String> {
 
 		MyCustomNoDefaultConstructorMap(Map<String, String> items) {
 			putAll(items);
@@ -674,35 +687,49 @@ class MapBinderTests {
 
 	}
 
-	public static class ExampleCustomWithDefaultConstructorBean {
+	static class ExampleCustomWithDefaultConstructorBean {
 
 		private MyCustomWithDefaultConstructorMap items = new MyCustomWithDefaultConstructorMap();
 
-		public MyCustomWithDefaultConstructorMap getItems() {
+		MyCustomWithDefaultConstructorMap getItems() {
 			return this.items;
 		}
 
-		public void setItems(MyCustomWithDefaultConstructorMap items) {
+		void setItems(MyCustomWithDefaultConstructorMap items) {
 			this.items.clear();
 			this.items.putAll(items);
 		}
 
 	}
 
-	public static class MyCustomWithDefaultConstructorMap extends HashMap<String, String> {
+	static class MyCustomWithDefaultConstructorMap extends HashMap<String, String> {
 
 	}
 
-	public static class BeanWithGetterException {
+	static class BeanWithGetterException {
 
 		private Map<String, String> values;
 
-		public void setValues(Map<String, String> values) {
+		void setValues(Map<String, String> values) {
 			this.values = values;
 		}
 
-		public Map<String, String> getValues() {
+		Map<String, String> getValues() {
 			return Collections.unmodifiableMap(this.values);
+		}
+
+	}
+
+	static class MapWithWildcardProperties {
+
+		private Map<String, ? extends List<? extends InetAddress>> addresses;
+
+		Map<String, ? extends List<? extends InetAddress>> getAddresses() {
+			return this.addresses;
+		}
+
+		void setAddresses(Map<String, ? extends List<? extends InetAddress>> addresses) {
+			this.addresses = addresses;
 		}
 
 	}

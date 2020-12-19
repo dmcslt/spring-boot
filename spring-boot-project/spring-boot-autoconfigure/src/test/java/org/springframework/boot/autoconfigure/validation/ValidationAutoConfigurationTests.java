@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.validation.ValidationAutoConfigurationTests.CustomValidatorConfiguration.TestBeanPostProcessor;
 import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.boot.validation.beanvalidation.MethodValidationExcludeFilter;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +44,7 @@ import org.springframework.validation.beanvalidation.OptionalValidatorFactoryBea
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -160,6 +162,15 @@ class ValidationAutoConfigurationTests {
 	}
 
 	@Test
+	void classCanBeExcludedFromValidation() {
+		load(ExcludedServiceConfiguration.class);
+		assertThat(this.context.getBeansOfType(Validator.class)).hasSize(1);
+		ExcludedService service = this.context.getBean(ExcludedService.class);
+		service.doSomething("Valid");
+		assertThatNoException().isThrownBy(() -> service.doSomething("KO"));
+	}
+
+	@Test
 	void validationUsesCglibProxy() {
 		load(DefaultAnotherSampleService.class);
 		assertThat(this.context.getBeansOfType(Validator.class)).hasSize(1);
@@ -220,7 +231,7 @@ class ValidationAutoConfigurationTests {
 	static class UserDefinedValidatorConfig {
 
 		@Bean
-		public OptionalValidatorFactoryBean customValidator() {
+		OptionalValidatorFactoryBean customValidator() {
 			return new OptionalValidatorFactoryBean();
 		}
 
@@ -230,7 +241,7 @@ class ValidationAutoConfigurationTests {
 	static class UserDefinedDefaultValidatorConfig {
 
 		@Bean
-		public OptionalValidatorFactoryBean defaultValidator() {
+		OptionalValidatorFactoryBean defaultValidator() {
 			return new OptionalValidatorFactoryBean();
 		}
 
@@ -240,7 +251,7 @@ class ValidationAutoConfigurationTests {
 	static class UserDefinedJsrValidatorConfig {
 
 		@Bean
-		public Validator customValidator() {
+		Validator customValidator() {
 			return mock(Validator.class);
 		}
 
@@ -250,12 +261,12 @@ class ValidationAutoConfigurationTests {
 	static class UserDefinedSpringValidatorConfig {
 
 		@Bean
-		public org.springframework.validation.Validator customValidator() {
+		org.springframework.validation.Validator customValidator() {
 			return mock(org.springframework.validation.Validator.class);
 		}
 
 		@Bean
-		public org.springframework.validation.Validator anotherCustomValidator() {
+		org.springframework.validation.Validator anotherCustomValidator() {
 			return mock(org.springframework.validation.Validator.class);
 		}
 
@@ -265,13 +276,13 @@ class ValidationAutoConfigurationTests {
 	static class UserDefinedPrimarySpringValidatorConfig {
 
 		@Bean
-		public org.springframework.validation.Validator customValidator() {
+		org.springframework.validation.Validator customValidator() {
 			return mock(org.springframework.validation.Validator.class);
 		}
 
 		@Bean
 		@Primary
-		public org.springframework.validation.Validator anotherCustomValidator() {
+		org.springframework.validation.Validator anotherCustomValidator() {
 			return mock(org.springframework.validation.Validator.class);
 		}
 
@@ -280,8 +291,30 @@ class ValidationAutoConfigurationTests {
 	@Validated
 	static class SampleService {
 
-		public void doSomething(@Size(min = 3, max = 10) String name) {
+		void doSomething(@Size(min = 3, max = 10) String name) {
+		}
 
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static final class ExcludedServiceConfiguration {
+
+		@Bean
+		ExcludedService excludedService() {
+			return new ExcludedService();
+		}
+
+		@Bean
+		MethodValidationExcludeFilter exclusionFilter() {
+			return (type) -> type.equals(ExcludedService.class);
+		}
+
+	}
+
+	@Validated
+	static final class ExcludedService {
+
+		void doSomething(@Size(min = 3, max = 10) String name) {
 		}
 
 	}
@@ -297,7 +330,6 @@ class ValidationAutoConfigurationTests {
 
 		@Override
 		public void doSomething(Integer counter) {
-
 		}
 
 	}
@@ -306,7 +338,7 @@ class ValidationAutoConfigurationTests {
 	static class AnotherSampleServiceConfiguration {
 
 		@Bean
-		public AnotherSampleService anotherSampleService() {
+		AnotherSampleService anotherSampleService() {
 			return new DefaultAnotherSampleService();
 		}
 
@@ -316,7 +348,7 @@ class ValidationAutoConfigurationTests {
 	static class SampleConfiguration {
 
 		@Bean
-		public MethodValidationPostProcessor testMethodValidationPostProcessor() {
+		MethodValidationPostProcessor testMethodValidationPostProcessor() {
 			return new MethodValidationPostProcessor();
 		}
 
@@ -343,7 +375,7 @@ class ValidationAutoConfigurationTests {
 		static class SomeServiceConfiguration {
 
 			@Bean
-			public SomeService someService() {
+			SomeService someService() {
 				return new SomeService();
 			}
 

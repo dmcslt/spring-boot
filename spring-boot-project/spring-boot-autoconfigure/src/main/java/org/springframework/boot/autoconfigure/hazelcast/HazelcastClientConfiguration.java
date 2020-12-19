@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,11 +45,11 @@ class HazelcastClientConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnMissingBean(ClientConfig.class)
-	@Conditional(ConfigAvailableCondition.class)
+	@Conditional(HazelcastClientConfigAvailableCondition.class)
 	static class HazelcastClientConfigFileConfiguration {
 
 		@Bean
-		public HazelcastInstance hazelcastInstance(HazelcastProperties properties) throws IOException {
+		HazelcastInstance hazelcastInstance(HazelcastProperties properties) throws IOException {
 			Resource config = properties.resolveConfigLocation();
 			if (config != null) {
 				return new HazelcastClientFactory(config).getHazelcastInstance();
@@ -64,21 +64,8 @@ class HazelcastClientConfiguration {
 	static class HazelcastClientConfigConfiguration {
 
 		@Bean
-		public HazelcastInstance hazelcastInstance(ClientConfig config) {
+		HazelcastInstance hazelcastInstance(ClientConfig config) {
 			return new HazelcastClientFactory(config).getHazelcastInstance();
-		}
-
-	}
-
-	/**
-	 * {@link HazelcastConfigResourceCondition} that checks if the
-	 * {@code spring.hazelcast.config} configuration key is defined.
-	 */
-	static class ConfigAvailableCondition extends HazelcastConfigResourceCondition {
-
-		ConfigAvailableCondition() {
-			super(CONFIG_SYSTEM_PROPERTY, "file:./hazelcast-client.xml", "classpath:/hazelcast-client.xml",
-					"file:./hazelcast-client.yaml", "classpath:/hazelcast-client.yaml");
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,31 +34,32 @@ import org.apache.maven.shared.artifact.filter.collection.FilterArtifacts;
  *
  * @author Stephane Nicoll
  * @author David Turanski
- * @since 1.1
+ * @since 1.1.0
  */
 public abstract class AbstractDependencyFilterMojo extends AbstractMojo {
 
 	/**
 	 * Collection of artifact definitions to include. The {@link Include} element defines
-	 * a {@code groupId} and {@code artifactId} mandatory properties and an optional
+	 * mandatory {@code groupId} and {@code artifactId} properties and an optional
+	 * mandatory {@code groupId} and {@code artifactId} properties and an optional
 	 * {@code classifier} property.
-	 * @since 1.2
+	 * @since 1.2.0
 	 */
 	@Parameter(property = "spring-boot.includes")
 	private List<Include> includes;
 
 	/**
 	 * Collection of artifact definitions to exclude. The {@link Exclude} element defines
-	 * a {@code groupId} and {@code artifactId} mandatory properties and an optional
+	 * mandatory {@code groupId} and {@code artifactId} properties and an optional
 	 * {@code classifier} property.
-	 * @since 1.1
+	 * @since 1.1.0
 	 */
 	@Parameter(property = "spring-boot.excludes")
 	private List<Exclude> excludes;
 
 	/**
 	 * Comma separated list of groupId names to exclude (exact match).
-	 * @since 1.1
+	 * @since 1.1.0
 	 */
 	@Parameter(property = "spring-boot.excludeGroupIds", defaultValue = "")
 	private String excludeGroupIds;
@@ -104,6 +105,7 @@ public abstract class AbstractDependencyFilterMojo extends AbstractMojo {
 		if (this.excludes != null && !this.excludes.isEmpty()) {
 			filters.addFilter(new ExcludeFilter(this.excludes));
 		}
+		filters.addFilter(new JarTypeFilter());
 		return filters;
 	}
 

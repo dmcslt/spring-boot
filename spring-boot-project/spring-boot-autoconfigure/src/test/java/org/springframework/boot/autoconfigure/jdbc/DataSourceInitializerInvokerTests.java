@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  */
 class DataSourceInitializerInvokerTests {
 
-	private ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 			.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class))
 			.withPropertyValues("spring.datasource.initialization-mode=never",
 					"spring.datasource.url:jdbc:hsqldb:mem:init-" + UUID.randomUUID());
@@ -243,20 +243,20 @@ class DataSourceInitializerInvokerTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	protected static class OneDataSource {
+	static class OneDataSource {
 
 		@Bean
-		public DataSource oneDataSource() {
+		DataSource oneDataSource() {
 			return new TestDataSource();
 		}
 
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	protected static class TwoDataSources extends OneDataSource {
+	static class TwoDataSources extends OneDataSource {
 
 		@Bean
-		public DataSource twoDataSource() {
+		DataSource twoDataSource() {
 			return new TestDataSource();
 		}
 
@@ -266,7 +266,7 @@ class DataSourceInitializerInvokerTests {
 	 * {@link ResourcePatternResolver} used to ensure consistently wrong resource
 	 * ordering.
 	 */
-	private static class ReverseOrderResourceLoader implements ResourcePatternResolver {
+	static class ReverseOrderResourceLoader implements ResourcePatternResolver {
 
 		private final ResourcePatternResolver resolver;
 

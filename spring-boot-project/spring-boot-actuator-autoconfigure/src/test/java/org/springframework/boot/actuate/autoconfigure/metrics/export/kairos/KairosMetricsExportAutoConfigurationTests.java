@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,15 @@ class KairosMetricsExportAutoConfigurationTests {
 	}
 
 	@Test
-	void autoConfigurationCanBeDisabled() {
+	void autoConfigurationCanBeDisabledWithDefaultsEnabledProperty() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.defaults.enabled=false")
+				.run((context) -> assertThat(context).doesNotHaveBean(KairosMeterRegistry.class)
+						.doesNotHaveBean(KairosConfig.class));
+	}
+
+	@Test
+	void autoConfigurationCanBeDisabledWithSpecificEnabledProperty() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
 				.withPropertyValues("management.metrics.export.kairos.enabled=false")
 				.run((context) -> assertThat(context).doesNotHaveBean(KairosMeterRegistry.class)
@@ -84,7 +92,7 @@ class KairosMetricsExportAutoConfigurationTests {
 	static class BaseConfiguration {
 
 		@Bean
-		public Clock clock() {
+		Clock clock() {
 			return Clock.SYSTEM;
 		}
 
@@ -95,7 +103,7 @@ class KairosMetricsExportAutoConfigurationTests {
 	static class CustomConfigConfiguration {
 
 		@Bean
-		public KairosConfig customConfig() {
+		KairosConfig customConfig() {
 			return (key) -> null;
 		}
 
@@ -106,7 +114,7 @@ class KairosMetricsExportAutoConfigurationTests {
 	static class CustomRegistryConfiguration {
 
 		@Bean
-		public KairosMeterRegistry customRegistry(KairosConfig config, Clock clock) {
+		KairosMeterRegistry customRegistry(KairosConfig config, Clock clock) {
 			return new KairosMeterRegistry(config, clock);
 		}
 

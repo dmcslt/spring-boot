@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 
@@ -46,6 +47,9 @@ import org.springframework.boot.loader.data.RandomAccessData;
  * @author Andy Wilkinson
  */
 class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
+
+	private static final Runnable NO_VALIDATION = () -> {
+	};
 
 	private static final String META_INF_PREFIX = "META-INF/";
 
@@ -91,14 +95,13 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 
 	private Boolean multiReleaseJar;
 
+	private JarEntryCertification[] certifications;
+
 	private final Map<Integer, FileHeader> entriesCache = Collections
 			.synchronizedMap(new LinkedHashMap<Integer, FileHeader>(16, 0.75f, true) {
 
 				@Override
 				protected boolean removeEldestEntry(Map.Entry<Integer, FileHeader> eldest) {
-					if (JarFileEntries.this.jarFile.isSigned()) {
-						return false;
-					}
 					return size() >= ENTRY_CACHE_SIZE;
 				}
 
@@ -192,23 +195,27 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 
 	@Override
 	public Iterator<JarEntry> iterator() {
-		return new EntryIterator();
+		return new EntryIterator(NO_VALIDATION);
 	}
 
-	public boolean containsEntry(CharSequence name) {
+	Iterator<JarEntry> iterator(Runnable validator) {
+		return new EntryIterator(validator);
+	}
+
+	boolean containsEntry(CharSequence name) {
 		return getEntry(name, FileHeader.class, true) != null;
 	}
 
-	public JarEntry getEntry(CharSequence name) {
+	JarEntry getEntry(CharSequence name) {
 		return getEntry(name, JarEntry.class, true);
 	}
 
-	public InputStream getInputStream(String name) throws IOException {
+	InputStream getInputStream(String name) throws IOException {
 		FileHeader entry = getEntry(name, FileHeader.class, false);
 		return getInputStream(entry);
 	}
 
-	public InputStream getInputStream(FileHeader entry) throws IOException {
+	InputStream getInputStream(FileHeader entry) throws IOException {
 		if (entry == null) {
 			return null;
 		}
@@ -219,7 +226,7 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 		return inputStream;
 	}
 
-	public RandomAccessData getEntryData(String name) throws IOException {
+	RandomAccessData getEntryData(String name) throws IOException {
 		FileHeader entry = getEntry(name, FileHeader.class, false);
 		if (entry == null) {
 			return null;
@@ -313,7 +320,7 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 			FileHeader entry = (cached != null) ? cached : CentralDirectoryFileHeader
 					.fromRandomAccessData(this.centralDirectoryData, this.centralDirectoryOffsets[index], this.filter);
 			if (CentralDirectoryFileHeader.class.equals(entry.getClass()) && type.equals(JarEntry.class)) {
-				entry = new JarEntry(this.jarFile, (CentralDirectoryFileHeader) entry, nameAlias);
+				entry = new JarEntry(this.jarFile, index, (CentralDirectoryFileHeader) entry, nameAlias);
 			}
 			if (cacheEntry && cached != entry) {
 				this.entriesCache.put(index, entry);
@@ -336,7 +343,7 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 		return index;
 	}
 
-	public void clearCache() {
+	void clearCache() {
 		this.entriesCache.clear();
 	}
 
@@ -344,20 +351,65 @@ class JarFileEntries implements CentralDirectoryVisitor, Iterable<JarEntry> {
 		return (this.filter != null) ? this.filter.apply(name) : name;
 	}
 
+	JarEntryCertification getCertification(JarEntry entry) throws IOException {
+		JarEntryCertification[] certifications = this.certifications;
+		if (certifications == null) {
+			certifications = new JarEntryCertification[this.size];
+			// We fallback to use JarInputStream to obtain the certs. This isn't that
+			// fast, but hopefully doesn't happen too often.
+			try (JarInputStream certifiedJarStream = new JarInputStream(this.jarFile.getData().getInputStream())) {
+				java.util.jar.JarEntry certifiedEntry = null;
+				while ((certifiedEntry = certifiedJarStream.getNextJarEntry()) != null) {
+					// Entry must be closed to trigger a read and set entry certificates
+					certifiedJarStream.closeEntry();
+					int index = getEntryIndex(certifiedEntry.getName());
+					if (index != -1) {
+						certifications[index] = JarEntryCertification.from(certifiedEntry);
+					}
+				}
+			}
+			this.certifications = certifications;
+		}
+		JarEntryCertification certification = certifications[entry.getIndex()];
+		return (certification != null) ? certification : JarEntryCertification.NONE;
+	}
+
+	private int getEntryIndex(CharSequence name) {
+		int hashCode = AsciiBytes.hashCode(name);
+		int index = getFirstIndex(hashCode);
+		while (index >= 0 && index < this.size && this.hashCodes[index] == hashCode) {
+			FileHeader candidate = getEntry(index, FileHeader.class, false, null);
+			if (candidate.hasName(name, NO_SUFFIX)) {
+				return index;
+			}
+			index++;
+		}
+		return -1;
+	}
+
 	/**
 	 * Iterator for contained entries.
 	 */
-	private class EntryIterator implements Iterator<JarEntry> {
+	private final class EntryIterator implements Iterator<JarEntry> {
+
+		private final Runnable validator;
 
 		private int index = 0;
 
+		private EntryIterator(Runnable validator) {
+			this.validator = validator;
+			validator.run();
+		}
+
 		@Override
 		public boolean hasNext() {
+			this.validator.run();
 			return this.index < JarFileEntries.this.size;
 		}
 
 		@Override
 		public JarEntry next() {
+			this.validator.run();
 			if (!hasNext()) {
 				throw new NoSuchElementException();
 			}

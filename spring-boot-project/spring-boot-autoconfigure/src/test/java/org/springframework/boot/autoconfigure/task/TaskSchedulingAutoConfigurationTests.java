@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TaskSchedulingAutoConfigurationTests {
 
-	private ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 			.withUserConfiguration(TestConfiguration.class)
 			.withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class));
 
@@ -68,7 +68,7 @@ class TaskSchedulingAutoConfigurationTests {
 					TestBean bean = context.getBean(TestBean.class);
 					assertThat(bean.latch.await(30, TimeUnit.SECONDS)).isTrue();
 					assertThat(taskExecutor).hasFieldOrPropertyWithValue("waitForTasksToCompleteOnShutdown", true);
-					assertThat(taskExecutor).hasFieldOrPropertyWithValue("awaitTerminationSeconds", 30);
+					assertThat(taskExecutor).hasFieldOrPropertyWithValue("awaitTerminationMillis", 30000L);
 					assertThat(bean.threadNames).allMatch((name) -> name.contains("scheduling-test-"));
 				});
 	}
@@ -131,7 +131,7 @@ class TaskSchedulingAutoConfigurationTests {
 	static class TaskSchedulerConfiguration {
 
 		@Bean
-		public TaskScheduler customTaskScheduler() {
+		TaskScheduler customTaskScheduler() {
 			return new TestTaskScheduler();
 		}
 
@@ -141,7 +141,7 @@ class TaskSchedulingAutoConfigurationTests {
 	static class ScheduledExecutorServiceConfiguration {
 
 		@Bean
-		public ScheduledExecutorService customScheduledExecutorService() {
+		ScheduledExecutorService customScheduledExecutorService() {
 			return Executors.newScheduledThreadPool(2);
 		}
 
@@ -151,7 +151,7 @@ class TaskSchedulingAutoConfigurationTests {
 	static class TaskSchedulerCustomizerConfiguration {
 
 		@Bean
-		public TaskSchedulerCustomizer testTaskSchedulerCustomizer() {
+		TaskSchedulerCustomizer testTaskSchedulerCustomizer() {
 			return ((taskScheduler) -> taskScheduler.setThreadNamePrefix("customized-scheduler-"));
 		}
 
@@ -173,7 +173,7 @@ class TaskSchedulingAutoConfigurationTests {
 	static class TestConfiguration {
 
 		@Bean
-		public TestBean testBean() {
+		TestBean testBean() {
 			return new TestBean();
 		}
 
@@ -186,7 +186,7 @@ class TaskSchedulingAutoConfigurationTests {
 		private final CountDownLatch latch = new CountDownLatch(1);
 
 		@Scheduled(fixedRate = 60000)
-		public void accumulate() {
+		void accumulate() {
 			this.threadNames.add(Thread.currentThread().getName());
 			this.latch.countDown();
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * A complete definition that can be used to create a Mockito spy.
  *
@@ -47,7 +49,7 @@ class SpyDefinition extends Definition {
 
 	}
 
-	public ResolvableType getTypeToSpy() {
+	ResolvableType getTypeToSpy() {
 		return this.typeToSpy;
 	}
 
@@ -78,12 +80,12 @@ class SpyDefinition extends Definition {
 				.append("reset", getReset()).toString();
 	}
 
-	public <T> T createSpy(Object instance) {
+	<T> T createSpy(Object instance) {
 		return createSpy(getName(), instance);
 	}
 
 	@SuppressWarnings("unchecked")
-	public <T> T createSpy(String name, Object instance) {
+	<T> T createSpy(String name, Object instance) {
 		Assert.notNull(instance, "Instance must not be null");
 		Assert.isInstanceOf(this.typeToSpy.resolve(), instance);
 		if (Mockito.mockingDetails(instance).isSpy()) {
@@ -95,10 +97,10 @@ class SpyDefinition extends Definition {
 		}
 		settings.spiedInstance(instance);
 		settings.defaultAnswer(Mockito.CALLS_REAL_METHODS);
-		if (this.isProxyTargetAware()) {
+		if (isProxyTargetAware()) {
 			settings.verificationStartedListeners(new SpringAopBypassingVerificationStartedListener());
 		}
-		return (T) Mockito.mock(instance.getClass(), settings);
+		return (T) mock(instance.getClass(), settings);
 	}
 
 	/**

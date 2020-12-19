@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.convert.converter.GenericConverter;
+import org.springframework.format.Formatter;
 
 /**
  * Utility to deduce the {@link ConversionService} to use for configuration properties
@@ -45,7 +46,7 @@ class ConversionServiceDeducer {
 		this.applicationContext = applicationContext;
 	}
 
-	public ConversionService getConversionService() {
+	ConversionService getConversionService() {
 		try {
 			return this.applicationContext.getBean(ConfigurableApplicationContext.CONVERSION_SERVICE_BEAN_NAME,
 					ConversionService.class);
@@ -62,9 +63,13 @@ class ConversionServiceDeducer {
 
 		private final List<GenericConverter> genericConverters;
 
+		@SuppressWarnings("rawtypes")
+		private final List<Formatter> formatters;
+
 		Factory(BeanFactory beanFactory) {
 			this.converters = beans(beanFactory, Converter.class, ConfigurationPropertiesBinding.VALUE);
 			this.genericConverters = beans(beanFactory, GenericConverter.class, ConfigurationPropertiesBinding.VALUE);
+			this.formatters = beans(beanFactory, Formatter.class, ConfigurationPropertiesBinding.VALUE);
 		}
 
 		private <T> List<T> beans(BeanFactory beanFactory, Class<T> type, String qualifier) {
@@ -79,8 +84,8 @@ class ConversionServiceDeducer {
 					BeanFactoryAnnotationUtils.qualifiedBeansOfType(beanFactory, type, qualifier).values());
 		}
 
-		public ConversionService create() {
-			if (this.converters.isEmpty() && this.genericConverters.isEmpty()) {
+		ConversionService create() {
+			if (this.converters.isEmpty() && this.genericConverters.isEmpty() && this.formatters.isEmpty()) {
 				return ApplicationConversionService.getSharedInstance();
 			}
 			ApplicationConversionService conversionService = new ApplicationConversionService();
@@ -89,6 +94,9 @@ class ConversionServiceDeducer {
 			}
 			for (GenericConverter genericConverter : this.genericConverters) {
 				conversionService.addConverter(genericConverter);
+			}
+			for (Formatter<?> formatter : this.formatters) {
+				conversionService.addFormatter(formatter);
 			}
 			return conversionService;
 		}

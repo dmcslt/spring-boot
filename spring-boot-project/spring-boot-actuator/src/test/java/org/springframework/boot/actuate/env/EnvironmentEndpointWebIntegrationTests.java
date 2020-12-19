@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,11 +88,8 @@ class EnvironmentEndpointWebIntegrationTests {
 	}
 
 	@WebEndpointTest
-	void nestedPathForUnknownKeyShouldReturn404AndBody() {
-		this.client.get().uri("/actuator/env/this.does.not.exist").exchange().expectStatus().isNotFound().expectBody()
-				.jsonPath("property").doesNotExist().jsonPath("propertySources[?(@.name=='test')]").exists()
-				.jsonPath("propertySources[?(@.name=='systemProperties')]").exists()
-				.jsonPath("propertySources[?(@.name=='systemEnvironment')]").exists();
+	void nestedPathForUnknownKeyShouldReturn404() {
+		this.client.get().uri("/actuator/env/this.does.not.exist").exchange().expectStatus().isNotFound();
 	}
 
 	@WebEndpointTest
@@ -128,12 +125,12 @@ class EnvironmentEndpointWebIntegrationTests {
 	static class TestConfiguration {
 
 		@Bean
-		public EnvironmentEndpoint endpoint(Environment environment) {
+		EnvironmentEndpoint endpoint(Environment environment) {
 			return new EnvironmentEndpoint(environment);
 		}
 
 		@Bean
-		public EnvironmentEndpointWebExtension environmentEndpointWebExtension(EnvironmentEndpoint endpoint) {
+		EnvironmentEndpointWebExtension environmentEndpointWebExtension(EnvironmentEndpoint endpoint) {
 			return new EnvironmentEndpointWebExtension(endpoint);
 		}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,13 +58,34 @@ class GraphiteMetricsExportAutoConfigurationTests {
 	}
 
 	@Test
+	void autoConfiguresWithTagsAsPrefixCanBeDisabled() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.graphite.tags-as-prefix=app",
+						"management.metrics.export.graphite.graphite-tags-enabled=true")
+				.run((context) -> {
+					assertThat(context).hasSingleBean(GraphiteMeterRegistry.class);
+					GraphiteMeterRegistry registry = context.getBean(GraphiteMeterRegistry.class);
+					registry.counter("test.count", Tags.of("app", "myapp"));
+					assertThat(registry.getDropwizardRegistry().getMeters()).containsOnlyKeys("test.count;app=myapp");
+				});
+	}
+
+	@Test
 	void autoConfiguresItsConfigAndMeterRegistry() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class).run((context) -> assertThat(context)
 				.hasSingleBean(GraphiteMeterRegistry.class).hasSingleBean(GraphiteConfig.class));
 	}
 
 	@Test
-	void autoConfigurationCanBeDisabled() {
+	void autoConfigurationCanBeDisabledWithDefaultsEnabledProperty() {
+		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
+				.withPropertyValues("management.metrics.export.defaults.enabled=false")
+				.run((context) -> assertThat(context).doesNotHaveBean(GraphiteMeterRegistry.class)
+						.doesNotHaveBean(GraphiteConfig.class));
+	}
+
+	@Test
+	void autoConfigurationCanBeDisabledWithSpecificEnabledProperty() {
 		this.contextRunner.withUserConfiguration(BaseConfiguration.class)
 				.withPropertyValues("management.metrics.export.graphite.enabled=false")
 				.run((context) -> assertThat(context).doesNotHaveBean(GraphiteMeterRegistry.class)
@@ -99,7 +120,7 @@ class GraphiteMetricsExportAutoConfigurationTests {
 	static class BaseConfiguration {
 
 		@Bean
-		public Clock clock() {
+		Clock clock() {
 			return Clock.SYSTEM;
 		}
 
@@ -110,7 +131,7 @@ class GraphiteMetricsExportAutoConfigurationTests {
 	static class CustomConfigConfiguration {
 
 		@Bean
-		public GraphiteConfig customConfig() {
+		GraphiteConfig customConfig() {
 			return (key) -> {
 				if ("Graphite.apiKey".equals(key)) {
 					return "12345";
@@ -126,7 +147,7 @@ class GraphiteMetricsExportAutoConfigurationTests {
 	static class CustomRegistryConfiguration {
 
 		@Bean
-		public GraphiteMeterRegistry customRegistry(GraphiteConfig config, Clock clock) {
+		GraphiteMeterRegistry customRegistry(GraphiteConfig config, Clock clock) {
 			return new GraphiteMeterRegistry(config, clock);
 		}
 

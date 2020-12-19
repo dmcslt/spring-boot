@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import de.flapdoodle.embed.mongo.MongodExecutable;
+import de.flapdoodle.embed.mongo.MongodStarter;
 import de.flapdoodle.embed.mongo.config.IMongodConfig;
 import de.flapdoodle.embed.mongo.config.Storage;
 import de.flapdoodle.embed.mongo.distribution.Feature;
@@ -37,6 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import org.springframework.beans.DirectFieldAccessor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
@@ -56,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Henryk Konsek
  * @author Andy Wilkinson
  * @author Stephane Nicoll
+ * @author Issam El-atif
  */
 class EmbeddedMongoAutoConfigurationTests {
 
@@ -92,7 +97,7 @@ class EmbeddedMongoAutoConfigurationTests {
 			features.add(Feature.ONLY_WINDOWS_2008_SERVER);
 		}
 		load("spring.mongodb.embedded.features="
-				+ String.join(", ", features.stream().map(Feature::name).collect(Collectors.toList())));
+				+ features.stream().map(Feature::name).collect(Collectors.joining(", ")));
 		assertThat(this.context.getBean(EmbeddedMongoProperties.class).getFeatures())
 				.containsExactlyElementsOf(features);
 	}
@@ -186,6 +191,17 @@ class EmbeddedMongoAutoConfigurationTests {
 		assertThat(this.context.getBean(MongodExecutable.class).isRegisteredJobKiller()).isFalse();
 	}
 
+	@Test
+	void customMongoServerConfiguration() {
+		load(CustomMongoConfiguration.class);
+		Map<String, MongoClient> mongoClients = this.context.getBeansOfType(MongoClient.class);
+		assertThat(mongoClients).isNotEmpty();
+		for (String mongoClientBeanName : mongoClients.keySet()) {
+			BeanDefinition beanDefinition = this.context.getBeanFactory().getBeanDefinition(mongoClientBeanName);
+			assertThat(beanDefinition.getDependsOn()).contains("customMongoServer");
+		}
+	}
+
 	private void assertVersionConfiguration(String configuredVersion, String expectedVersion) {
 		this.context = new AnnotationConfigApplicationContext();
 		TestPropertyValues.of("spring.data.mongodb.port=0").applyTo(this.context);
@@ -221,19 +237,16 @@ class EmbeddedMongoAutoConfigurationTests {
 		return File.separatorChar == '\\';
 	}
 
-	@SuppressWarnings("deprecation")
 	private int getPort(MongoClient client) {
-		// At some point we'll probably need to use reflection to find the address but for
-		// now, we can use the deprecated getAddress method.
-		return client.getAddress().getPort();
+		return client.getClusterDescription().getClusterSettings().getHosts().get(0).getPort();
 	}
 
 	@Configuration(proxyBeanMethods = false)
 	static class MongoClientConfiguration {
 
 		@Bean
-		public MongoClient mongoClient(@Value("${local.mongo.port}") int port) {
-			return new MongoClient("localhost", port);
+		MongoClient mongoClient(@Value("${local.mongo.port}") int port) {
+			return MongoClients.create("mongodb://localhost:" + port);
 		}
 
 	}
@@ -242,8 +255,19 @@ class EmbeddedMongoAutoConfigurationTests {
 	static class DownloadConfigBuilderCustomizerConfiguration {
 
 		@Bean
-		public DownloadConfigBuilderCustomizer testDownloadConfigBuilderCustomizer() {
+		DownloadConfigBuilderCustomizer testDownloadConfigBuilderCustomizer() {
 			return (downloadConfigBuilder) -> downloadConfigBuilder.userAgent("Test User Agent");
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class CustomMongoConfiguration {
+
+		@Bean(initMethod = "start", destroyMethod = "stop")
+		MongodExecutable customMongoServer(IRuntimeConfig runtimeConfig, IMongodConfig mongodConfig) {
+			MongodStarter mongodStarter = MongodStarter.getInstance(runtimeConfig);
+			return mongodStarter.prepare(mongodConfig);
 		}
 
 	}
